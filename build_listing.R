@@ -411,7 +411,7 @@ make_details <- function(row) {
         '<p class="label" style="margin-bottom:0">What you get when you register:</p>',
         paste0(
           "<ol>",
-          "<li><strong>Right away:</strong> the complete recordings from the previous run of this workshop.</li>",
+          "<li><strong>Right away:</strong> the complete recordings from the last time this workshop was taught.</li>",
           "<li><strong>During the live sessions:</strong> join on Zoom and ask the instructor questions.</li>",
           "<li><strong>After the last live session:</strong> the new recordings are posted to your workshop page within 48 hours", posted_by, ".</li>",
           "</ol>"

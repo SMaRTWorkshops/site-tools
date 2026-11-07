@@ -19,8 +19,8 @@ The listing works out each live run's state when a visitor opens the page, in Ne
 | When | Where the workshop shows |
 | --- | --- |
 | Before the first meeting date | "Coming up on Zoom", with its dates. |
-| From the first to the last meeting date | "Coming up on Zoom", marked "In progress". Past dates are struck through. |
-| The two days after the last date | "Coming up on Zoom", marked finished, with "full recordings by" the date 48 hours after the last day. |
+| From the first to the last meeting date | "Coming up on Zoom", with "In progress" under its dates. Past dates are struck through. |
+| The two days after the last date | "Coming up on Zoom", with "Finished" under its dates and "Full recordings by" the date 48 hours after the last day. |
 | After that | "Watch anytime". |
 
 The info page follows the same rule, at the nightly run: after those two days it describes a recorded workshop ("Recorded lectures, watch anytime" and "Workshop recordings available now!"). So after a run you do not need to change `eventtype` to `Independent`. When the row gets next year's dates, the card and the info page show the live version again.
@@ -33,7 +33,7 @@ The code block fills in everything under the "Available Workshops" title: a one-
 
 The listing uses the site's own fonts and colours (Granville, Brandon Grotesque and the gold accent). It reads them from Squarespace's site styles, so a change there carries over.
 
-Each card under "Watch anytime" opens with a tinted band in the colour of its main topic, with an icon. The main topic is the first of the workshop's tags in this order: Funding, Trials, Dyadic, Design, Measurement, Programming, Longitudinal, Analysis, so a specific topic wins over a general one. Design and Trials share a colour and the label "Design & Trials". The order is the `TOPICS` list in `site/loader.js`, and the colours are in `templates/listing.html`. A new topic tag needs an entry in both, or its cards have no band.
+Colour on the cards means topic. Each card under "Watch anytime" opens with a tinted band in the colour of its main topic, with an icon, and a card under "Coming up on Zoom" has the same colour and icon in its date block (grey once the run has finished), so a workshop keeps its colour before and after its run. The format is said in words, with a coloured dot. The main topic is the first of the workshop's tags in this order: Funding, Trials, Dyadic, Design, Measurement, Programming, Longitudinal, Analysis, so a specific topic wins over a general one. Design and Trials share a colour and the label "Design & Trials". The order is the `TOPICS` list in `site/loader.js`, and the colours are in `templates/listing.html`. A new topic tag needs an entry in both, or its cards have no band.
 
 The search matches titles, instructors and tags. The instructor menu lists everyone, and a co-taught workshop counts for each of its instructors. Clicking an instructor's name on a card selects them. The filters are kept in the page address, so a filtered view can be linked, for example `/workshops?instructor=Aidan%20Wright` or `/workshops?topics=Mplus`.
 
@@ -45,7 +45,7 @@ The card and the info page for a workshop read the same row.
 | --- | --- |
 | `title` | Shown on the card. |
 | `instructors` | Shown on the card. Separate co-instructors with `&`, for example `Amie Gordon & Kate Thorson`. Each name becomes a filter in the instructor menu. |
-| `tags`, `status_badge` | Separated by semicolons. Most tags become filters, grouped as Topic, Software (`R`, `Mplus`, `SPSS`) and Other (`Free`, `Advanced`). A tag that is not in Software or Other is a Topic. Three tags are not filters: `Legacy` is on every workshop and is not shown; `Combo` shows "Combo pricing available" on the card; `New` shows a New badge. `Free` also shows a Free badge. |
+| `tags`, `status_badge` | Separated by semicolons. Most tags become filters, grouped as Topic, Software (`R`, `Mplus`, `SPSS`) and Other (`Free`, `Advanced`). A tag that is not in Software or Other is a Topic. Three tags are not filters: `Legacy` is on every workshop and is not shown; `Combo` shows "Combo pricing available" on the card; `New` shows a New badge on a recorded workshop's card. `Free` also shows a Free badge. The badges sit in the card's top-right corner. |
 | `link` | The info page address. Its last part (for example `lang-r-info`) names the details file. |
 | `eventtype` | `Live`, `Flipped`, or `Independent`. These words are not shown to visitors. The card and the info page say instead "Lectures live on Zoom", "Recorded lectures plus live Zoom meetings", or "Recorded lectures, watch anytime" (set in `how_taught` in `build_listing.R`). A live or flipped workshop shows under "Coming up on Zoom" until 48 hours after its last date, then under "Watch anytime" (see above). |
 | `duration` | For example `3 Day` or `3 Half-Day`. The card shows "3 half-days", and the info page shows "3 Half-Day Workshop · Lectures live on Zoom". |
@@ -53,7 +53,7 @@ The card and the info page for a workshop read the same row.
 | `dates_year` | The year of `meeting_dates`. If it is the tab's year, leave it blank. Fill it in for a session in the next year, for example a January session in the 2026 tab. |
 | `session_et` | The daily session time in Eastern time, for example `9:00 AM - 12:00 PM`. The card shows it once, and the info page shows it for each date. |
 | `instructor_tz` | The instructor's time zone, for example `Europe/Stockholm`. When it is filled in, the info page also shows each session in that zone, with daylight saving time worked out per date. Leave it blank for instructors in the US. |
-| `videos_now` | Tick it for every live or flipped workshop that has run before: buyers get the recordings from the previous run right away. The card then says "Recordings from the last run available now", and the info page lists what the buyer gets and when. **Leave it blank only for a workshop on its first run.** The card then shows a New badge and "New workshop: recordings posted by" the date 48 hours after the last session. |
+| `videos_now` | Tick it for every live or flipped workshop that has run before: buyers get the recordings from the previous run right away. The card then says "Past recordings available now", and the info page lists what the buyer gets and when. **Leave it blank only for a workshop on its first run.** The card then says "New: recordings by" the date 48 hours after the last session. |
 | `instructor_details` | The instructor lines at the top of the info page section, for example `Oscar Kjell, PhD (Lund University; Vanderbilt University)`. Put each instructor on a new line in the cell (Ctrl+Enter, or Cmd+Enter on a Mac). With two or more lines, the label reads "Instructors:". If the cell is blank, the section has no instructor lines. |
 | `draft` | Tick it to hide the card. A blank cell also hides the card. The info page details section is built either way. |
 
