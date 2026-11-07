@@ -503,6 +503,10 @@ make_details <- function(row) {
                str_glue("<table>{rows}</table>"))
     }
 
+    # The promise: a run's recordings are on the workshop page within 48 hours
+    # after its last day ends, so by the end of the second day after it.
+    posted_by <- if (length(dates) > 0) paste0(" (by ", fmt_day(max(dates) + 2), ")") else ""
+
     if (row$videos_now) {
       out <- c(out,
         '<p class="label" style="margin-bottom:0">What you get when you register:</p>',
@@ -510,11 +514,13 @@ make_details <- function(row) {
           "<ol>",
           "<li><strong>Right away:</strong> the complete recordings from the previous run of this workshop.</li>",
           "<li><strong>During the live sessions:</strong> join on Zoom and ask the instructor questions.</li>",
-          "<li><strong>After each live session:</strong> its recording is posted to your workshop page.</li>",
+          "<li><strong>After the last live session:</strong> the new recordings are posted to your workshop page within 48 hours", posted_by, ".</li>",
           "</ol>"
         ))
     } else {
-      out <- c(out, '<p><span class="label">Video Availability:</span><br>Each live session is recorded and posted to your workshop page.</p>')
+      out <- c(out, paste0('<p><span class="label">Video Availability:</span><br>Every live session is recorded. ',
+                           'The recordings are posted to your workshop page within 48 hours after the last session ends',
+                           posted_by, '.</p>'))
     }
     out <- c(out, "<p>Attending live is optional, because every session is recorded. We encourage you to join if you can: it is your chance to ask the instructor questions.</p>")
   } else {
