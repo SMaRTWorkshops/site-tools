@@ -33,6 +33,8 @@ The code block fills in everything under the "Available Workshops" title: a one-
 
 The listing uses the site's own fonts and colours (Granville, Brandon Grotesque and the gold accent). It reads them from Squarespace's site styles, so a change there carries over.
 
+Each card under "Watch anytime" opens with a tinted band in the colour of its main topic, with an icon. The main topic is the first of the workshop's tags in this order: Funding, Trials, Dyadic, Design, Measurement, Programming, Longitudinal, Analysis, so a specific topic wins over a general one. Design and Trials share a colour and the label "Design & Trials". The order is the `TOPICS` list in `site/loader.js`, and the colours are in `templates/listing.html`. A new topic tag needs an entry in both, or its cards have no band.
+
 The search matches titles, instructors and tags. The instructor menu lists everyone, and a co-taught workshop counts for each of its instructors. Clicking an instructor's name on a card selects them. The filters are kept in the page address, so a filtered view can be linked, for example `/workshops?instructor=Aidan%20Wright` or `/workshops?topics=Mplus`.
 
 ## Sheet columns
