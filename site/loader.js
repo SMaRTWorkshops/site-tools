@@ -207,6 +207,9 @@
 
     function liveCard(c) {
       var flipped = c.format === "flipped", ended = c.state === "ended";
+      // The date block takes the topic's colour, as the recorded cards do, so
+      // a workshop keeps its colour before and after its run.
+      var topic = topicOf(c);
       var when;
       if (c.days.length) {
         var f = fromDayNum(c.days[0]), l = fromDayNum(c.days[c.days.length - 1]);
@@ -218,6 +221,9 @@
       } else {
         when = '<span class="mon">Dates</span><span class="yr">to be announced</span>';
       }
+      if (topic) {
+        when += '<span class="wtopic"><svg viewBox="0 0 24 24" aria-hidden="true">' + topic.icon + "</svg>" + esc(topic.label) + "</span>";
+      }
       var sessions = c.days.map(function (n) {
         var d = fromDayNum(n), t = DOW[d.getUTCDay()] + ", " + fmtDay(n);
         return "<span>" + (n < today ? "<s>" + t + "</s>" : t) + "</span>";
@@ -225,7 +231,7 @@
       var meta = [durationText(c.duration)];
       if (c.time) meta.push(esc(c.time));
       if (c.instructors.length) meta.push(whoHtml(c));
-      return '<article class="card live' + (flipped ? " flipped" : "") + (ended ? " ended" : "") + '">' +
+      return '<article class="card live' + (flipped ? " flipped" : "") + (ended ? " ended" : "") + (topic ? " t-" + topic.key : "") + '">' +
         '<div class="when" aria-hidden="true">' + when + "</div>" +
         '<div class="body">' +
         '<div class="fmt"><span class="kind">' + esc(ended ? "Finished" : c.how) + "</span>" +
