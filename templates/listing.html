@@ -90,7 +90,10 @@
   .badge { display: inline-block; font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
            padding: 4px 7px 3px; border-radius: 2px; vertical-align: 4px; margin-right: 8px; line-height: 1; }
   .badge.new { background: var(--ink); color: #fff; }
-  .badge.free { border: 1px solid var(--gold); color: var(--gold); }
+  .badge.free { border: 1px solid var(--gold); color: var(--gold); margin: 0; flex-shrink: 0; }
+  .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .head .badge.free { margin-top: 5px; }
+  .fmt .badge.free { margin-left: auto; }
 
   .live-list { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); }
   .live { display: grid; grid-template-columns: 104px 1fr; overflow: hidden; }
