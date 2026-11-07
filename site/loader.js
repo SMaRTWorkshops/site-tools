@@ -174,12 +174,17 @@
       }).join(" &amp; ");
     }
     function titleHtml(c) {
-      return "<h3>" + (c["new"] ? '<span class="badge new">New</span>' : "") +
-        '<a href="' + esc(c.link || "#") + '">' + esc(c.title) + "</a></h3>";
+      return '<h3><a href="' + esc(c.link || "#") + '">' + esc(c.title) + "</a></h3>";
     }
-    // Free sits in the card's top-right corner: at the end of the format line
-    // on a live card, and at the end of the title row on a recorded one.
-    function freeHtml(c) { return c.free ? '<span class="badge free">Free</span>' : ""; }
+    // New and Free sit in the card's top-right corner: at the end of the
+    // format line on a live card, and at the end of the title row on a
+    // recorded one. A live first run says "New workshop" in its recordings
+    // line, so it does not need the badge as well.
+    function cornerHtml(c, showNew) {
+      var b = (showNew && c["new"] ? '<span class="badge new">New</span>' : "") +
+        (c.free ? '<span class="badge free">Free</span>' : "");
+      return b ? '<span class="corner">' + b + "</span>" : "";
+    }
     function tagsHtml(c) {
       if (!c.tags.length) return "";
       return '<div class="tags">' + c.tags.map(function (t) {
@@ -221,21 +226,26 @@
       } else {
         when = '<span class="mon">Dates</span><span class="yr">to be announced</span>';
       }
+      // Where the run stands goes under its dates, not on the card's top line
+      var status = c.state === "running" ? "In progress" : ended ? "Finished" : "";
+      if (status) when += '<span class="wstatus">' + status + "</span>";
       if (topic) {
         when += '<span class="wtopic"><svg viewBox="0 0 24 24" aria-hidden="true">' + topic.icon + "</svg>" + esc(topic.label) + "</span>";
       }
+      // Every meeting day, because the block shows only the range and a run
+      // can skip a day. Past days are struck through.
       var sessions = c.days.map(function (n) {
         var d = fromDayNum(n), t = DOW[d.getUTCDay()] + ", " + fmtDay(n);
-        return "<span>" + (n < today ? "<s>" + t + "</s>" : t) + "</span>";
-      }).join("");
+        return n < today ? "<s>" + t + "</s>" : t;
+      }).join(" · ");
       var meta = [durationText(c.duration)];
       if (c.time) meta.push(esc(c.time));
       if (c.instructors.length) meta.push(whoHtml(c));
       return '<article class="card live' + (flipped ? " flipped" : "") + (ended ? " ended" : "") + (topic ? " t-" + topic.key : "") + '">' +
         '<div class="when" aria-hidden="true">' + when + "</div>" +
         '<div class="body">' +
-        '<div class="fmt"><span class="kind">' + esc(ended ? "Finished" : c.how) + "</span>" +
-        (c.state === "running" ? '<span class="pill">In progress</span>' : "") + freeHtml(c) + "</div>" +
+        '<div class="fmt"><span class="kind">' + esc(c.how) + "</span>" +
+        (status ? '<span class="sr-only">, ' + status.toLowerCase() + "</span>" : "") + cornerHtml(c, false) + "</div>" +
         titleHtml(c) +
         '<div class="meta">' + meta.join(" · ") + "</div>" +
         (ended || !sessions ? "" : '<div class="sessions">' + sessions + "</div>") +
@@ -282,7 +292,7 @@
       var meta = [durationText(c.duration)];
       if (c.instructors.length) meta.push(whoHtml(c));
       return '<article class="card anytime' + (t ? " t-" + t.key : "") + '">' + topicHtml(t) +
-        '<div class="head">' + titleHtml(c) + freeHtml(c) + "</div>" +
+        '<div class="head">' + titleHtml(c) + cornerHtml(c, true) + "</div>" +
         '<div class="meta">' + meta.join(" · ") + "</div>" +
         comboHtml(c) + tagsHtml(c) + "</article>";
     }
