@@ -207,7 +207,7 @@
         return '<div class="avail later"><span class="ico">◷</span>New: recordings ' +
           (c.days.length ? "by " + fmtDay(last + POSTING_DAYS) : "within 48 hours") + "</div>";
       }
-      return '<div class="avail now"><span class="ico">✓</span>Recordings from the last run available now</div>';
+      return '<div class="avail now"><span class="ico">✓</span>Past recordings available now</div>';
     }
 
     function liveCard(c) {
