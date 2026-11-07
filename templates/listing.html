@@ -96,19 +96,19 @@
   .fmt .badge.free { margin-left: auto; }
 
   .live-list { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); }
-  .live { display: grid; grid-template-columns: 104px 1fr; overflow: hidden; }
+  .live { display: grid; grid-template-columns: 144px 1fr; overflow: hidden; }
   .when { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 2px;
-          padding: 16px 6px; background: var(--gold-soft); border-right: 1px solid var(--rule); }
+          padding: 22px 14px; background: var(--gold-soft); border-right: 1px solid var(--rule); }
   /* The date block takes the workshop's topic colour (see the topic colours
      below); a finished run's block is grey. */
   .live .when { background: var(--tt, var(--gold-soft)); }
   .live.ended .when { background: hsl(0, 0%, 96%); }
   .when .mon { font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--tc, var(--gold)); }
-  .wtopic { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 12px; padding: 0 4px;
+  .wtopic { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 16px; padding: 0;
             font-size: 10px; font-weight: 700; letter-spacing: .1em; line-height: 1.25; text-transform: uppercase; color: var(--tc, var(--muted)); }
   .wtopic svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
   .live.ended .when .mon, .live.ended .wtopic { color: var(--muted); }
-  .when .days { font-family: var(--serif); font-weight: 700; font-size: 30px; line-height: 1; color: var(--ink); white-space: nowrap; }
+  .when .days { font-family: var(--serif); font-weight: 700; font-size: 34px; line-height: 1.05; color: var(--ink); white-space: nowrap; }
   .when .yr { font-size: 13px; letter-spacing: .08em; color: var(--muted); }
   .live .body { padding: 18px 20px 18px; display: flex; flex-direction: column; }
   .fmt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-bottom: 8px; }
