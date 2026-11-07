@@ -31,6 +31,7 @@ The card and the info page for a workshop read the same row.
 | `session_et` | The daily session time in Eastern time, for example `9:00 AM - 12:00 PM`. The info page shows it for each date. |
 | `instructor_tz` | The instructor's time zone, for example `Europe/Stockholm`. When it is filled in, the info page also shows each session in that zone, with daylight saving time worked out per date. Leave it blank for instructors in the US. |
 | `videos_now` | If buyers of a live workshop get the recordings from the previous run right away, tick it. The card then says "Recordings available now", and the info page lists what the buyer gets and when. |
+| `instructor_details` | The instructor lines at the top of the info page section, for example `Oscar Kjell, PhD (Lund University; Vanderbilt University)`. Put each instructor on a new line in the cell (Ctrl+Enter, or Cmd+Enter on a Mac). With two or more lines, the label reads "Instructors:". If the cell is blank, the section has no instructor lines. |
 | `draft` | Tick it to hide the card. A blank cell also hides the card. The info page details section is built either way. |
 
 If the build cannot read `session_et` or `instructor_tz`, it stops with a message that names the workshop. The site keeps the previous content until you fix the cell.
@@ -54,10 +55,11 @@ When the new tab is ready, change `year` at the top of `build_listing.R` and pus
 
 Do this once per info page.
 
-1. In Squarespace, open the page and edit the text block that holds "Instructor:", "Workshop Format:", and "Video Availability:".
-2. Delete the "Workshop Format" and "Video Availability" lines. Keep the instructor lines.
-3. Below that text block, add a code block. Paste the contents of `site/details-snippet.html` into it.
-4. Save, then open the page while signed out of Squarespace. The section does not run while you are signed in and editing.
+1. In the sheet, fill in `instructor_details` for the workshop. Run the workflow.
+2. In Squarespace, open the page. Edit the text block that starts with "Instructor:".
+3. Delete the instructor, "Workshop Format", and "Video Availability" lines, and the blank lines after them. The text block now starts with the description.
+4. Above that text block, add a code block. Paste the contents of `site/details-snippet.html` into it.
+5. Save. Then open the page while signed out of Squarespace, because the section does not run while you are signed in and editing.
 
 ## Run it locally
 

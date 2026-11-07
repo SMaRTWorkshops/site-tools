@@ -208,7 +208,11 @@ raw <- read_sheet(sheet_id, sheet = year)
 #                  page also gives the sessions in the instructor's local time
 #   videos_now     ticked when buyers of a live workshop get the recordings
 #                  from the previous run right away
-for (nm in c("dates_year", "session_et", "instructor_tz", "videos_now")) {
+#   instructor_details
+#                  the instructor lines at the top of the info page section,
+#                  one instructor per line, e.g. Oscar Kjell, PhD (Lund
+#                  University; Vanderbilt University)
+for (nm in c("dates_year", "session_et", "instructor_tz", "videos_now", "instructor_details")) {
   if (!nm %in% names(raw)) raw[[nm]] <- NA
 }
 
@@ -227,7 +231,7 @@ workshops <-
   raw |>
   mutate(
     across(c(title, link, instructors, status_badge, eventtype, duration,
-             meeting_dates, tags, session_et, instructor_tz), as_text),
+             meeting_dates, tags, session_et, instructor_tz, instructor_details), as_text),
     row_year = coalesce(suppressWarnings(as.integer(as_text(dates_year))), as.integer(year)),
     videos_now = coalesce(as.logical(as_text(videos_now)), FALSE),
     # A blank draft cell hides the row, as it always has: a row added below the
@@ -464,10 +468,26 @@ details_style <- '<style>
 </style>
 '
 
+escape_html <- function(x) {
+  x |>
+    str_replace_all("&", "&amp;") |>
+    str_replace_all("<", "&lt;") |>
+    str_replace_all(">", "&gt;")
+}
+
 make_details <- function(row) {
   live <- !is.na(row$eventtype) && row$eventtype != "Independent"
   where <- if (live) " on Zoom" else ""
-  out <- str_glue('<p><span class="label">Workshop Format:</span><br>{row$duration} {row$eventtype} Workshop{where}</p>')
+  out <- character(0)
+
+  if (!is.na(row$instructor_details)) {
+    lines <- str_split(row$instructor_details, "\\s*\\n\\s*")[[1]]
+    lines <- escape_html(lines[lines != ""])
+    label <- if (length(lines) > 1) "Instructors:" else "Instructor:"
+    out <- c(out, str_glue('<p><span class="label">{label}</span><br>{paste(lines, collapse = "<br>")}</p>'))
+  }
+
+  out <- c(out, str_glue('<p><span class="label">Workshop Format:</span><br>{row$duration} {row$eventtype} Workshop{where}</p>'))
 
   if (live) {
     dates <- parse_meeting_dates(row$meeting_dates, row$row_year)
