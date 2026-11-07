@@ -1,52 +1,73 @@
 /*
- * SMaRT Workshops listing loader.
+ * SMaRT Workshops loader.
  *
- * The Squarespace code block (snippet.html) holds an empty
- * <div id="workshop-host"> and this script. The script fetches workshops.html
- * from the same folder it was loaded from and puts it into a shadow root on the
- * host, so the listing's Bootstrap CSS cannot restyle the rest of the page.
- * build_listing.R writes workshops.html; this file does not change when the
- * workshops do.
+ * Runs on Squarespace pages and fills in two kinds of empty placeholder:
+ *
+ *   <div id="workshop-host"></div>
+ *     The card listing on /workshops (snippet.html). Filled from
+ *     workshops.html, with working tag filters.
+ *
+ *   <div class="sw-details"></div>
+ *     The format, live sessions, and video access section of an info page
+ *     (details-snippet.html). Filled from details/<page>.html, where <page> is
+ *     the last part of the page's address, for example lang-r-info. A
+ *     data-page="..." attribute on the div overrides that.
+ *
+ * Each placeholder gets a shadow root, so the styles that come with the content
+ * cannot change the rest of the page. build_listing.R writes the content files;
+ * this file does not change when the workshops do.
  */
 (function () {
   var FALLBACK_BASE = "https://smartworkshops.github.io/site-tools/";
   var EMOJI_FONT = "https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap";
 
-  // Chrome and Safari ignore @font-face rules that load inside a shadow root,
-  // so the emoji font goes on the page itself. The cards still pick it up,
-  // because fonts registered on the page are visible inside the shadow root.
-  if (!document.querySelector('link[href="' + EMOJI_FONT + '"]')) {
-    var fontLink = document.createElement("link");
-    fontLink.rel = "stylesheet";
-    fontLink.href = EMOJI_FONT;
-    document.head.appendChild(fontLink);
-  }
-
   var script = document.currentScript;
   var base = script && script.src ? script.src.replace(/[^\/]*$/, "") : FALLBACK_BASE;
 
-  var host = document.getElementById("workshop-host");
-  if (!host || host.shadowRoot) return;
+  function fill(host, url, loadingHtml, failHtml, after) {
+    if (!host || host.shadowRoot) return;
+    var shadow = host.attachShadow({ mode: "open" });
+    shadow.innerHTML = loadingHtml;
 
-  var shadow = host.attachShadow({ mode: "open" });
-  shadow.innerHTML =
-    '<p style="text-align:center;color:#64748b;padding:2rem 0">Loading workshops&hellip;</p>';
+    fetch(url, { cache: "no-cache" })
+      .then(function (response) {
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        return response.text();
+      })
+      .then(function (html) {
+        shadow.innerHTML = html;
+        if (after) after(shadow);
+      })
+      .catch(function (err) {
+        console.error("SMaRT Workshops content did not load from " + url + ":", err);
+        shadow.innerHTML = failHtml;
+      });
+  }
 
-  fetch(base + "workshops.html", { cache: "no-cache" })
-    .then(function (response) {
-      if (!response.ok) throw new Error("HTTP " + response.status);
-      return response.text();
-    })
-    .then(function (html) {
-      shadow.innerHTML = html;
-      wireFilters(shadow);
-    })
-    .catch(function (err) {
-      console.error("SMaRT Workshops listing did not load:", err);
-      shadow.innerHTML =
-        '<p style="text-align:center;padding:2rem 0">The workshop list did not load. ' +
-        "Please refresh the page to try again.</p>";
-    });
+  // The card listing ------------------------------------------------------
+
+  var listing = document.getElementById("workshop-host");
+  if (listing) {
+    // Chrome and Safari ignore @font-face rules that load inside a shadow
+    // root, so the emoji font goes on the page itself. The cards still pick it
+    // up, because fonts registered on the page are visible inside the shadow
+    // root.
+    if (!document.querySelector('link[href="' + EMOJI_FONT + '"]')) {
+      var fontLink = document.createElement("link");
+      fontLink.rel = "stylesheet";
+      fontLink.href = EMOJI_FONT;
+      document.head.appendChild(fontLink);
+    }
+
+    fill(
+      listing,
+      base + "workshops.html",
+      '<p style="text-align:center;color:#64748b;padding:2rem 0">Loading workshops&hellip;</p>',
+      '<p style="text-align:center;padding:2rem 0">The workshop list did not load. ' +
+        "Please refresh the page to try again.</p>",
+      wireFilters
+    );
+  }
 
   function wireFilters(root) {
     var filterButtons = root.querySelectorAll(".filter-btn[data-tag]");
@@ -69,4 +90,20 @@
       });
     });
   }
+
+  // Info-page details -----------------------------------------------------
+
+  var pageFromPath = window.location.pathname.replace(/\/+$/, "").split("/").pop();
+
+  document.querySelectorAll(".sw-details").forEach(function (host) {
+    var page = host.getAttribute("data-page") || pageFromPath;
+    if (!/^[A-Za-z0-9_-]+$/.test(page)) return;
+    fill(
+      host,
+      base + "details/" + page + ".html",
+      "",
+      "<p>The workshop schedule did not load. Please refresh the page to try again.</p>",
+      null
+    );
+  });
 })();
