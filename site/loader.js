@@ -199,13 +199,13 @@
     function availHtml(c) {
       if (c.state === "anytime") return '<div class="avail now"><span class="ico">✓</span>Watch now</div>';
       var last = c.days[c.days.length - 1];
+      // Kept to one line: the date block already says "Finished".
       if (c.state === "ended") {
-        return '<div class="avail later"><span class="ico">◷</span>Live sessions ended ' + fmtDay(last) +
-          " · full recordings by " + fmtDay(last + POSTING_DAYS) + "</div>";
+        return '<div class="avail later"><span class="ico">◷</span>Full recordings by ' + fmtDay(last + POSTING_DAYS) + "</div>";
       }
       if (c.first_run) {
-        return '<div class="avail later"><span class="ico">◷</span>New workshop: recordings posted ' +
-          (c.days.length ? "by " + fmtDay(last + POSTING_DAYS) : "within 48 hours of the last session") + "</div>";
+        return '<div class="avail later"><span class="ico">◷</span>New: recordings ' +
+          (c.days.length ? "by " + fmtDay(last + POSTING_DAYS) : "within 48 hours") + "</div>";
       }
       return '<div class="avail now"><span class="ico">✓</span>Recordings from the last run available now</div>';
     }
