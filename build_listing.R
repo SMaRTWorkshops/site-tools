@@ -196,6 +196,44 @@ if (nrow(dup_pages) > 0) {
 }
 
 
+# How a workshop is taught, in words a visitor needs no glossary for. The card
+# and the info page both use these, so they say the same thing. eventtype
+# (Live, Flipped, Independent) stays in the sheet but is not shown.
+format_of <- function(eventtype) {
+  case_when(
+    str_detect(coalesce(eventtype, ""), "Live") ~ "live",
+    str_detect(coalesce(eventtype, ""), "Flipped") ~ "flipped",
+    TRUE ~ "independent"
+  )
+}
+how_taught <- c(
+  live = "Lectures live on Zoom",
+  flipped = "Recorded lectures plus live Zoom meetings",
+  independent = "Recorded lectures, watch anytime"
+)
+
+# Recordings are on the workshop page within 48 hours after a run's last day.
+# Until then the run counts as current; after that the workshop is described
+# as recorded, on the card and the info page alike. loader.js uses the same
+# number.
+posting_days <- 2
+
+# A live or flipped row's meeting dates. "TBA" or a blank cell gives none. A
+# cell with numbers that will not read stops the build, because it would put
+# a live workshop on the wrong days.
+run_dates <- function(row) {
+  if (format_of(row$eventtype) == "independent" || !str_detect(coalesce(row$meeting_dates, ""), "\\d")) {
+    return(as.Date(character(0)))
+  }
+  dates <- parse_meeting_dates(row$meeting_dates, row$row_year)
+  if (any(is.na(dates))) {
+    stop("Cannot read meeting_dates '", row$meeting_dates, "' for '", row$title, "'. ",
+         "Write them like Jan 12, 13, 14.")
+  }
+  sort(dates)
+}
+
+
 # 2. Cards ----------------------------------------------------------------
 
 # The listing is published as data. loader.js draws the cards from it in the
@@ -227,21 +265,9 @@ session_text <- function(x, title) {
 
 card_data <- function(row) {
   tags <- split_cell(row$tags, ";")
-  format <- case_when(
-    str_detect(coalesce(row$eventtype, ""), "Live") ~ "live",
-    str_detect(coalesce(row$eventtype, ""), "Flipped") ~ "flipped",
-    TRUE ~ "independent"
-  )
+  format <- format_of(row$eventtype)
   live <- format != "independent"
-
-  has_dates <- live && str_detect(coalesce(row$meeting_dates, ""), "\\d")
-  dates <- if (has_dates) parse_meeting_dates(row$meeting_dates, row$row_year) else as.Date(character(0))
-  # A date cell with numbers that will not read would put a live workshop on
-  # the wrong days. "TBA" or a blank cell is fine: the card says dates to come.
-  if (any(is.na(dates))) {
-    stop("Cannot read meeting_dates '", row$meeting_dates, "' for '", row$title, "'. ",
-         "Write them like Jan 12, 13, 14.")
-  }
+  dates <- run_dates(row)
 
   list(
     title = row$title,
@@ -249,7 +275,8 @@ card_data <- function(row) {
     duration = row$duration,
     instructors = I(split_cell(row$instructors, "\\s*(&|;|\\s+and\\s+)\\s*")),
     format = format,
-    dates = I(format(sort(dates), "%Y-%m-%d")),
+    how = unname(how_taught[format]),
+    dates = I(format(dates, "%Y-%m-%d")),
     time = if (live) session_text(row$session_et, row$title) else NA_character_,
     # A live or flipped workshop without last run's videos is on its first run:
     # every returning live workshop comes with them.
@@ -345,8 +372,13 @@ escape_html <- function(x) {
 }
 
 make_details <- function(row) {
-  live <- !is.na(row$eventtype) && row$eventtype != "Independent"
-  where <- if (live) " on Zoom" else ""
+  format <- format_of(row$eventtype)
+  dates <- run_dates(row)
+  # Once the run is over and its recordings are up, the page describes a
+  # recorded workshop, as its card does, until the row gets new dates.
+  finished <- length(dates) > 0 && max(dates) + posting_days < run_date
+  if (finished) format <- "independent"
+  live <- format != "independent"
   out <- character(0)
 
   if (!is.na(row$instructor_details)) {
@@ -356,11 +388,9 @@ make_details <- function(row) {
     out <- c(out, str_glue('<p><span class="label">{label}</span><br>{paste(lines, collapse = "<br>")}</p>'))
   }
 
-  out <- c(out, str_glue('<p><span class="label">Workshop Format:</span><br>{row$duration} {row$eventtype} Workshop{where}</p>'))
+  out <- c(out, str_glue('<p><span class="label">Workshop Format:</span><br>{row$duration} Workshop \u00b7 {how_taught[[format]]}</p>'))
 
   if (live) {
-    dates <- parse_meeting_dates(row$meeting_dates, row$row_year)
-    dates <- dates[!is.na(dates)]
     hm <- parse_session_et(row$session_et, row$title)
     if (length(dates) > 0) {
       if (is.null(hm)) {
@@ -374,7 +404,7 @@ make_details <- function(row) {
 
     # The promise: a run's recordings are on the workshop page within 48 hours
     # after its last day ends, so by the end of the second day after it.
-    posted_by <- if (length(dates) > 0) paste0(" (by ", fmt_day(max(dates) + 2), ")") else ""
+    posted_by <- if (length(dates) > 0) paste0(" (by ", fmt_day(max(dates) + posting_days), ")") else ""
 
     if (row$videos_now) {
       out <- c(out,

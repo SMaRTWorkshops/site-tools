@@ -102,12 +102,11 @@
   .when .yr { font-size: 13px; letter-spacing: .08em; color: var(--muted); }
   .live .body { padding: 18px 20px 18px; display: flex; flex-direction: column; }
   .fmt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-bottom: 8px; }
-  .kind { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--live); }
+  .kind { display: inline-flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 700; color: var(--live); }
   .kind::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
   .live.flipped .kind { color: var(--flip); }
   .live.ended .kind { color: var(--muted); }
   .pill { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; padding: 4px 7px 3px; border-radius: 2px; background: var(--ink); color: #fff; line-height: 1; }
-  .explain { font-size: 14px; color: var(--muted); margin: -2px 0 8px; }
   .sessions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; font-size: 14px; }
   .sessions span { padding: 3px 9px; border: 1px solid var(--rule); border-radius: 2px; }
   .sessions s { color: #9a9a9a; }
@@ -164,8 +163,8 @@
   </div>
 
   <section class="section" id="liveSection">
-    <h2>Live workshops</h2>
-    <p class="sub">Join on Zoom and ask the instructor questions. Every session is recorded, so attending live is optional.</p>
+    <h2>Coming up on Zoom</h2>
+    <p class="sub">These workshops meet live on Zoom on the dates shown. Every session is recorded, so attending live is optional.</p>
     <div class="live-list" id="liveList"></div>
   </section>
 

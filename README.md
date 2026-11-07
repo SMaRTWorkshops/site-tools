@@ -18,10 +18,12 @@ The listing works out each live run's state when a visitor opens the page, in Ne
 
 | When | Where the workshop shows |
 | --- | --- |
-| Before the first meeting date | "Live workshops", with its dates. |
-| From the first to the last meeting date | "Live workshops", marked "In progress". Past dates are struck through. |
-| The two days after the last date | "Live workshops", marked finished, with "full recordings by" the date 48 hours after the last day. |
+| Before the first meeting date | "Coming up on Zoom", with its dates. |
+| From the first to the last meeting date | "Coming up on Zoom", marked "In progress". Past dates are struck through. |
+| The two days after the last date | "Coming up on Zoom", marked finished, with "full recordings by" the date 48 hours after the last day. |
 | After that | "Watch anytime". |
+
+The info page follows the same rule, at the nightly run: after those two days it describes a recorded workshop ("Recorded lectures, watch anytime" and "Workshop recordings available now!"). So after a run you do not need to change `eventtype` to `Independent`. When the row gets next year's dates, the card and the info page show the live version again.
 
 The line above the search box ("1 live workshop coming up · All 32 available to watch now") is counted the same way, so it is right in any month.
 
@@ -43,8 +45,8 @@ The card and the info page for a workshop read the same row.
 | `instructors` | Shown on the card. Separate co-instructors with `&`, for example `Amie Gordon & Kate Thorson`. Each name becomes a filter in the instructor menu. |
 | `tags`, `status_badge` | Separated by semicolons. Most tags become filters, grouped as Topic, Software (`R`, `Mplus`, `SPSS`) and Other (`Free`, `Advanced`). A tag that is not in Software or Other is a Topic. Three tags are not filters: `Legacy` is on every workshop and is not shown; `Combo` shows "Combo pricing available" on the card; `New` shows a New badge. `Free` also shows a Free badge. |
 | `link` | The info page address. Its last part (for example `lang-r-info`) names the details file. |
-| `eventtype` | `Live`, `Flipped`, or `Independent`. A live or flipped workshop shows under "Live workshops" until 48 hours after its last date (see above). An independent one shows under "Watch anytime". |
-| `duration` | For example `3 Day` or `3 Half-Day`. The card shows "3 half-days", and the info page shows "3 Half-Day Live Workshop on Zoom". |
+| `eventtype` | `Live`, `Flipped`, or `Independent`. These words are not shown to visitors. The card and the info page say instead "Lectures live on Zoom", "Recorded lectures plus live Zoom meetings", or "Recorded lectures, watch anytime" (set in `how_taught` in `build_listing.R`). A live or flipped workshop shows under "Coming up on Zoom" until 48 hours after its last date, then under "Watch anytime" (see above). |
+| `duration` | For example `3 Day` or `3 Half-Day`. The card shows "3 half-days", and the info page shows "3 Half-Day Workshop · Lectures live on Zoom". |
 | `meeting_dates` | For example `Jan 12, 13, 14`. A day without a month takes the month before it. For a live workshop whose dates are not set yet, write `TBA` or leave it blank: the card says "Dates to be announced". |
 | `dates_year` | The year of `meeting_dates`. If it is the tab's year, leave it blank. Fill it in for a session in the next year, for example a January session in the 2026 tab. |
 | `session_et` | The daily session time in Eastern time, for example `9:00 AM - 12:00 PM`. The card shows it once, and the info page shows it for each date. |

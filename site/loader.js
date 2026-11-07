@@ -64,7 +64,8 @@
   // A live or flipped run is "coming up" until its first day, "in progress"
   // until its last, "finished" for the 48 hours in which its recordings are
   // posted, and after that the workshop moves to "Watch anytime". Days are
-  // taken in New York time, like the dates in the sheet.
+  // taken in New York time, like the dates in the sheet. The info pages switch
+  // at the same point (posting_days in build_listing.R).
 
   var POSTING_DAYS = 2;
   var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -225,9 +226,8 @@
       return '<article class="card live' + (flipped ? " flipped" : "") + (ended ? " ended" : "") + '">' +
         '<div class="when" aria-hidden="true">' + when + "</div>" +
         '<div class="body">' +
-        '<div class="fmt"><span class="kind">' + (flipped ? "Flipped" : "Live on Zoom") + (ended ? " · finished" : "") + "</span>" +
+        '<div class="fmt"><span class="kind">' + esc(ended ? "Finished" : c.how) + "</span>" +
         (c.state === "running" ? '<span class="pill">In progress</span>' : "") + "</div>" +
-        (flipped && !ended ? '<div class="explain">Recorded lectures at your own pace, plus live Zoom meetings</div>' : "") +
         titleHtml(c) +
         '<div class="meta">' + meta.join(" · ") + "</div>" +
         (ended || !sessions ? "" : '<div class="sessions">' + sessions + "</div>") +
@@ -255,7 +255,7 @@
     var upN = live.filter(function (c) { return c.state !== "ended"; }).length;
     var nowN = cards.filter(function (c) { return c.state === "anytime" || !c.first_run; }).length;
     $("status").innerHTML =
-      (upN ? '<span class="s live"><span class="dot"></span>' + upN + " live workshop" + (upN > 1 ? "s" : "") + " coming up</span>"
+      (upN ? '<span class="s live"><span class="dot"></span>' + upN + " workshop" + (upN > 1 ? "s" : "") + " coming up on Zoom</span>"
            : '<span class="s none">No live sessions scheduled right now</span>') +
       '<span class="s now">✓ ' + (nowN === cards.length ? "All " + nowN : nowN) + " available to watch now</span>";
 
