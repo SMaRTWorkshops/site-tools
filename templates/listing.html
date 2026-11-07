@@ -115,7 +115,25 @@
   .sessions s { color: #9a9a9a; }
 
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-  .anytime { padding: 18px 20px; display: flex; flex-direction: column; }
+  .anytime { --pad-y: 18px; --pad-x: 20px; padding: var(--pad-y) var(--pad-x); display: flex; flex-direction: column; }
+
+  /* Topic colours for the recorded cards: muted, to sit beside the gold.
+     --tc is the colour, --tt a pale tint of it. loader.js picks the topic. */
+  .t-analysis     { --tc: #2e6a69; --tt: #e9f2f1; }
+  .t-longitudinal { --tc: #375a86; --tt: #eaeff6; }
+  .t-design       { --tc: #a24e2f; --tt: #f8ede7; }
+  .t-funding      { --tc: #87641f; --tt: #f7f0e1; }
+  .t-dyadic       { --tc: #77476b; --tt: #f4ecf2; }
+  .t-measurement  { --tc: #66702c; --tt: #f1f3e5; }
+  .t-programming  { --tc: #45525e; --tt: #edf0f2; }
+  .topic { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: .12em;
+           text-transform: uppercase; color: var(--tc, var(--muted)); }
+  .topic svg { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.6;
+               stroke-linecap: round; stroke-linejoin: round; }
+  /* Each card opens with a tinted band in its topic's colour */
+  .anytime .topic { margin: calc(-1 * var(--pad-y)) calc(-1 * var(--pad-x)) 16px; padding: 14px var(--pad-x);
+                    background: var(--tt, hsl(0, 0%, 96%)); border-bottom: 1px solid var(--rule); border-radius: 3px 3px 0 0; }
+  .anytime .topic svg { width: 26px; height: 26px; stroke-width: 1.5; }
 
   .empty { text-align: center; padding: 40px 16px; color: var(--muted); border: 1px dashed var(--rule); }
 
@@ -140,7 +158,8 @@
     .when { flex-direction: row; justify-content: flex-start; align-items: baseline; gap: 10px; padding: 10px 16px;
             border-right: 0; border-bottom: 1px solid var(--rule); }
     .when .days { font-size: 22px; }
-    .live .body, .anytime { padding: 14px 16px; }
+    .live .body { padding: 14px 16px; }
+    .anytime { --pad-y: 14px; --pad-x: 16px; }
     .anytime .tags { display: none; }
     .section h2 { font-size: 25px; }
   }

@@ -237,12 +237,48 @@
         "</div></article>";
     }
 
+    // Each recorded workshop takes the colour and icon of its main topic: the
+    // first of its tags in this list, so a specific topic wins over a general
+    // one (Dyadic over Design, anything over Analysis). The colours are in
+    // templates/listing.html.
+    var TOPICS = [
+      { tag: "Funding", key: "funding", label: "Funding",
+        icon: '<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/>' },
+      { tag: "Trials", key: "design", label: "Design & Trials",
+        icon: '<circle cx="4.5" cy="12" r="1.6"/><path d="M6 12h3.5l4.5-5h6M9.5 12l4.5 5h6"/>' },
+      { tag: "Dyadic", key: "dyadic", label: "Dyadic",
+        icon: '<circle cx="9" cy="12" r="5.5"/><circle cx="15" cy="12" r="5.5"/>' },
+      { tag: "Design", key: "design", label: "Design & Trials",
+        icon: '<circle cx="4.5" cy="12" r="1.6"/><path d="M6 12h3.5l4.5-5h6M9.5 12l4.5 5h6"/>' },
+      { tag: "Measurement", key: "measurement", label: "Measurement",
+        icon: '<path d="M3.5 17a8.5 8.5 0 0 1 17 0"/><path d="M12 17l4.5-5.5"/><circle cx="12" cy="17" r="1.2"/>' },
+      { tag: "Programming", key: "programming", label: "Programming",
+        icon: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14"/>' },
+      { tag: "Longitudinal", key: "longitudinal", label: "Longitudinal",
+        icon: '<path d="M3 20h18M3 20V4"/><path d="M6 15.5l4-4.5 3.5 3 6-7"/>' },
+      { tag: "Analysis", key: "analysis", label: "Analysis",
+        icon: '<path d="M3.5 19.5L20.5 5"/><circle cx="6.5" cy="15" r="1.4"/><circle cx="10.5" cy="13.5" r="1.4"/><circle cx="14" cy="9.5" r="1.4"/><circle cx="17.5" cy="10" r="1.4"/>' }
+    ];
+    function topicOf(c) {
+      for (var i = 0; i < TOPICS.length; i++) if (c.tags.indexOf(TOPICS[i].tag) !== -1) return TOPICS[i];
+      return null;
+    }
+    function topicHtml(t) {
+      if (!t) return "";
+      return '<div class="topic"><svg viewBox="0 0 24 24" aria-hidden="true">' + t.icon + "</svg>" +
+        "<span>" + esc(t.label) + "</span></div>";
+    }
+
+    // "Watch now" would be the same on every card here, and the section's
+    // heading already says it, so a recorded card does not repeat it.
     function anyCard(c) {
+      var t = topicOf(c);
       var meta = [durationText(c.duration)];
       if (c.instructors.length) meta.push(whoHtml(c));
-      return '<article class="card anytime"><div class="head">' + titleHtml(c) + freeHtml(c) + "</div>" +
+      return '<article class="card anytime' + (t ? " t-" + t.key : "") + '">' + topicHtml(t) +
+        '<div class="head">' + titleHtml(c) + freeHtml(c) + "</div>" +
         '<div class="meta">' + meta.join(" · ") + "</div>" +
-        availHtml(c) + comboHtml(c) + tagsHtml(c) + "</article>";
+        comboHtml(c) + tagsHtml(c) + "</article>";
     }
 
     var ORDER = { running: 0, upcoming: 1, tba: 2, ended: 3 };
