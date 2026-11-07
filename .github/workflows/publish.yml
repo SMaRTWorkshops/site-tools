@@ -1,0 +1,90 @@
+name: Publish workshop listing
+
+on:
+  schedule:
+    # 05:30 UTC is 00:30 or 01:30 in New York, so each day's dates are struck
+    # through soon after midnight.
+    - cron: '30 5 * * *'
+  # "Run workflow" on the Actions tab: use it after editing the sheet.
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A newer run replaces an older one. Nothing here is lost by cancelling.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # Same image as daily-job: R with CRAN frozen at a dated Posit Package
+    # Manager snapshot, served as Linux binaries.
+    container: rocker/r-ver:4.6.1
+
+    env:
+      R_LIBS: /opt/rlib
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Identify the R build
+        id: rbuild
+        run: |
+          echo "version=$(Rscript -e 'cat(R.version$major, R.version$minor, sep = ".")')" >> "$GITHUB_OUTPUT"
+          echo "snapshot=$(Rscript -e 'cat(basename(getOption("repos")[["CRAN"]]))')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache R packages
+        uses: actions/cache@v4
+        with:
+          path: /opt/rlib
+          key: rlib-${{ steps.rbuild.outputs.version }}-${{ steps.rbuild.outputs.snapshot }}-${{ hashFiles('.github/workflows/publish.yml') }}
+
+      - name: Install dependencies
+        run: |
+          packages="dplyr stringr purrr lubridate googlesheets4"
+          mkdir -p "$R_LIBS"
+
+          verify() {
+              Rscript -e 'q(status = !all(sapply(commandArgs(TRUE), requireNamespace, quietly = TRUE)))' $packages
+          }
+
+          if verify; then
+              echo "All packages restored from the cache."
+              exit 0
+          fi
+
+          for i in 1 2 3; do
+              Rscript -e 'if (!requireNamespace("pak", quietly = TRUE)) install.packages("pak"); pak::pak(commandArgs(TRUE))' $packages && verify && exit 0
+              echo "Install attempt $i failed. Retrying in 15 seconds..."
+              sleep 15
+          done
+          exit 1
+
+      - name: Build listing
+        env:
+          GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+        run: Rscript build_listing.R
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

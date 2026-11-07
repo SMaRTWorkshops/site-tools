@@ -1,0 +1,15 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.Renviron
+.DS_Store
+
+# Credentials. Never commit these: the repo is public.
+service-account.json
+apikeys.txt
+client_secret_*.json
+.env
+
+# Build output. GitHub Actions builds and publishes it; it is not committed.
+_site/
