@@ -51,7 +51,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          packages="dplyr stringr purrr lubridate googlesheets4"
+          packages="dplyr stringr purrr lubridate googlesheets4 jsonlite"
           mkdir -p "$R_LIBS"
 
           verify() {

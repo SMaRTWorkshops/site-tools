@@ -14,7 +14,26 @@ The sheet has one tab per year. GitHub Actions runs `build_listing.R` every nigh
 
 If the R packages come from the cache, the run takes about two minutes. After it finishes, Squarespace pages show the new content within ten minutes, because GitHub Pages lets browsers cache files for that long.
 
-The nightly run also strikes through meeting dates that are past. It uses New York time.
+The listing works out each live run's state when a visitor opens the page, in New York time, so it never waits for the nightly run:
+
+| When | Where the workshop shows |
+| --- | --- |
+| Before the first meeting date | "Coming up on Zoom", with its dates. |
+| From the first to the last meeting date | "Coming up on Zoom", marked "In progress". Past dates are struck through. |
+| The two days after the last date | "Coming up on Zoom", marked finished, with "full recordings by" the date 48 hours after the last day. |
+| After that | "Watch anytime". |
+
+The info page follows the same rule, at the nightly run: after those two days it describes a recorded workshop ("Recorded lectures, watch anytime" and "Workshop recordings available now!"). So after a run you do not need to change `eventtype` to `Independent`. When the row gets next year's dates, the card and the info page show the live version again.
+
+The line above the search box ("1 live workshop coming up · All 32 available to watch now") is counted the same way, so it is right in any month.
+
+## The /workshops page
+
+The code block fills in everything under the "Available Workshops" title: a one-line introduction, the status line, links to discounts, group rates and invoices, the search and filters, and the two sections of cards. The introduction, the discounts and the format explanations used to be Squarespace text and an accordion above the code block. That content is now in the listing, so those blocks are deleted.
+
+The listing uses the site's own fonts and colours (Granville, Brandon Grotesque and the gold accent). It reads them from Squarespace's site styles, so a change there carries over.
+
+The search matches titles, instructors and tags. The instructor menu lists everyone, and a co-taught workshop counts for each of its instructors. Clicking an instructor's name on a card selects them. The filters are kept in the page address, so a filtered view can be linked, for example `/workshops?instructor=Aidan%20Wright` or `/workshops?topics=Mplus`.
 
 ## Sheet columns
 
@@ -22,19 +41,21 @@ The card and the info page for a workshop read the same row.
 
 | Column | What it holds |
 | --- | --- |
-| `title`, `instructors`, `tags`, `status_badge` | Shown on the card. |
+| `title` | Shown on the card. |
+| `instructors` | Shown on the card. Separate co-instructors with `&`, for example `Amie Gordon & Kate Thorson`. Each name becomes a filter in the instructor menu. |
+| `tags`, `status_badge` | Separated by semicolons. Most tags become filters, grouped as Topic, Software (`R`, `Mplus`, `SPSS`) and Other (`Free`, `Advanced`). A tag that is not in Software or Other is a Topic. Three tags are not filters: `Legacy` is on every workshop and is not shown; `Combo` shows "Combo pricing available" on the card; `New` shows a New badge. `Free` also shows a Free badge. |
 | `link` | The info page address. Its last part (for example `lang-r-info`) names the details file. |
-| `eventtype` | `Live`, `Flipped`, or `Independent`. |
-| `duration` | For example `3 Day` or `3 Half-Day`. The card shows "3 Half-Day Online Workshop", and the info page shows "3 Half-Day Live Workshop on Zoom". |
-| `meeting_dates` | For example `Jan 12, 13, 14`. A day without a month takes the month before it. |
+| `eventtype` | `Live`, `Flipped`, or `Independent`. These words are not shown to visitors. The card and the info page say instead "Lectures live on Zoom", "Recorded lectures plus live Zoom meetings", or "Recorded lectures, watch anytime" (set in `how_taught` in `build_listing.R`). A live or flipped workshop shows under "Coming up on Zoom" until 48 hours after its last date, then under "Watch anytime" (see above). |
+| `duration` | For example `3 Day` or `3 Half-Day`. The card shows "3 half-days", and the info page shows "3 Half-Day Workshop · Lectures live on Zoom". |
+| `meeting_dates` | For example `Jan 12, 13, 14`. A day without a month takes the month before it. For a live workshop whose dates are not set yet, write `TBA` or leave it blank: the card says "Dates to be announced". |
 | `dates_year` | The year of `meeting_dates`. If it is the tab's year, leave it blank. Fill it in for a session in the next year, for example a January session in the 2026 tab. |
-| `session_et` | The daily session time in Eastern time, for example `9:00 AM - 12:00 PM`. The info page shows it for each date. |
+| `session_et` | The daily session time in Eastern time, for example `9:00 AM - 12:00 PM`. The card shows it once, and the info page shows it for each date. |
 | `instructor_tz` | The instructor's time zone, for example `Europe/Stockholm`. When it is filled in, the info page also shows each session in that zone, with daylight saving time worked out per date. Leave it blank for instructors in the US. |
-| `videos_now` | If buyers of a live workshop get the recordings from the previous run right away, tick it. The card then says "Recordings available now", and the info page lists what the buyer gets and when. |
+| `videos_now` | Tick it for every live or flipped workshop that has run before: buyers get the recordings from the previous run right away. The card then says "Recordings from the last run available now", and the info page lists what the buyer gets and when. **Leave it blank only for a workshop on its first run.** The card then shows a New badge and "New workshop: recordings posted by" the date 48 hours after the last session. |
 | `instructor_details` | The instructor lines at the top of the info page section, for example `Oscar Kjell, PhD (Lund University; Vanderbilt University)`. Put each instructor on a new line in the cell (Ctrl+Enter, or Cmd+Enter on a Mac). With two or more lines, the label reads "Instructors:". If the cell is blank, the section has no instructor lines. |
 | `draft` | Tick it to hide the card. A blank cell also hides the card. The info page details section is built either way. |
 
-If the build cannot read `session_et` or `instructor_tz`, it stops with a message that names the workshop. The site keeps the previous content until you fix the cell.
+If the build cannot read `meeting_dates`, `session_et` or `instructor_tz`, it stops with a message that names the workshop. The site keeps the previous content until you fix the cell.
 
 ## Start a new year
 
@@ -45,7 +66,8 @@ When the new tab is ready, change `year` at the top of `build_listing.R` and pus
 | File | What it does |
 | --- | --- |
 | `build_listing.R` | Reads the sheet. Writes `_site/workshops.html` and one `_site/details/<page>.html` per info page. Also copies `site/` into `_site/`. |
-| `site/loader.js` | Runs on the Squarespace pages. Fills each placeholder from the matching file. Puts the content in a shadow root (a sealed part of the page), so its styles change nothing else on the page. Wires up the tag filter buttons. |
+| `templates/listing.html` | The styles and outline of the /workshops listing. The build adds the workshops to it as data and publishes it as `workshops.html`. |
+| `site/loader.js` | Runs on the Squarespace pages. Fills each placeholder from the matching file. Puts the content in a shadow root (a sealed part of the page), so its styles change nothing else on the page. On /workshops it draws the cards from the data and runs the search and filters. |
 | `site/snippet.html` | The code block on the /workshops page. |
 | `site/details-snippet.html` | The code block on each info page. It is the same on every page, because the loader takes the page name from the page's address. |
 | `site/preview.html`, `site/preview-details.html` | Test pages that load the content the same way Squarespace does. |
@@ -81,7 +103,7 @@ To see the result, serve `_site/` and open a preview page. If you open the file 
 python3 -m http.server 8765 --directory _site
 ```
 
-Then open <http://localhost:8765/preview.html> for the listing, or <http://localhost:8765/preview-details.html?page=lang-r-info> for an info page section.
+Then open <http://localhost:8765/preview.html> for the listing (add `?sw_today=2027-06-16` to see it as it will look on another day), or <http://localhost:8765/preview-details.html?page=lang-r-info> for an info page section.
 
 ## Credentials
 

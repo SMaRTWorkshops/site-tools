@@ -4,7 +4,10 @@
 # Reads this year's tab of the workshop Google Sheet and writes _site/, which
 # GitHub Actions publishes to GitHub Pages:
 #
-#   _site/workshops.html          the card listing on the /workshops page
+#   _site/workshops.html          the listing on the /workshops page: the
+#                                 styles and outline from
+#                                 templates/listing.html, plus the workshops
+#                                 as data that loader.js draws as cards
 #   _site/details/<page>.html     the format, live sessions, and video access
 #                                 section of each info page, for example
 #                                 details/lang-r-info.html for /lang-r-info
@@ -23,6 +26,7 @@ suppressPackageStartupMessages({
   library(purrr)
   library(lubridate)
   library(googlesheets4)
+  library(jsonlite)
 })
 
 
@@ -57,6 +61,9 @@ if (nzchar(service_account_txt)) {
 }
 
 
+read_file_text <- function(path) paste(readLines(path, encoding = "UTF-8", warn = FALSE), collapse = "\n")
+
+
 # Date and time helpers ---------------------------------------------------
 
 # Turn "Jan 12, 13, 14" into dates. A part without a month name takes the month
@@ -78,51 +85,6 @@ parse_meeting_dates <- function(date_string, yr) {
     }
   }
   out
-}
-
-# Format a meeting-date string for a card and strike through the dates already
-# past
-format_dates_html <- function(date_string, yr) {
-  if (is.na(date_string) || date_string == "") return("")
-
-  parts <- str_split(date_string, ",")[[1]] |> str_trim() |> str_squish()
-  parts <- parts[parts != ""]
-
-  dates <- parse_meeting_dates(date_string, yr)
-  is_past <- !is.na(dates) & dates < run_date
-
-  months <- str_extract(parts, "^[A-Za-z]+")
-  month <- months[1]
-  nums <- suppressWarnings(as.integer(str_extract(parts, "\\d+")))
-
-  # Only parts after the first that repeat its month, or name none, can join a
-  # range. Otherwise "Apr 6, May 7" would print as "Apr 6-7".
-  one_month <- all(is.na(months[-1]) | months[-1] == month)
-
-  # Compress sequential numbers
-  if (length(parts) > 1 && one_month && all(!is.na(nums)) && all(diff(nums) == 1)) {
-    if (all(is_past)) {
-      return(paste0("<s class='text-muted opacity-75'>", month, " ", nums[1], "-", nums[length(nums)], "</s>"))
-    } else if (all(!is_past)) {
-      return(paste0(month, " ", nums[1], "-", nums[length(nums)]))
-    }
-  }
-
-  formatted_parts <- map2_chr(parts, is_past, ~ {
-    if (.y) paste0("<s class='text-muted opacity-75'>", .x, "</s>") else .x
-  })
-
-  paste(formatted_parts, collapse = ", ")
-}
-
-# The next upcoming date, for sorting the cards. Falls back to the first date if
-# all are past.
-get_sort_date <- function(date_string, yr) {
-  dates <- parse_meeting_dates(date_string, yr)
-  dates <- dates[!is.na(dates)]
-  if (length(dates) == 0) return(as.Date(NA))
-  future <- dates[dates >= run_date]
-  if (length(future) > 0) min(future) else min(dates)
 }
 
 # Parse "9:00 AM - 12:00 PM" (Eastern) into start and end clock times. Returns
@@ -174,24 +136,6 @@ session_row_html <- function(date, hm, instructor_tz) {
   row <- paste0("<td>", cells, "</td>", collapse = "")
   if (past) row <- str_replace_all(row, "<td>(.*?)</td>", "<td><s>\\1</s></td>")
   paste0("<tr>", row, "</tr>")
-}
-
-
-# Tag pills shown on each card
-make_tags <- function(tags) {
-  if (is.na(tags)) return("")
-  tags_sep <- str_squish(str_split(tags, ";")[[1]])
-  tags_sep <- tags_sep[tags_sep != ""]
-  if (length(tags_sep) == 0) return("")
-
-  out <- map_chr(tags_sep, \(tag) {
-    if (tag %in% c("Free", "New")) {
-      str_glue('<span class="btn btn-sm filter-btn tag-emph">{tag}</span>')
-    } else {
-      str_glue('<span class="btn btn-outline-secondary btn-sm filter-btn">{tag}</span>')
-    }
-  })
-  str_c(out, collapse = " ")
 }
 
 
@@ -252,42 +196,102 @@ if (nrow(dup_pages) > 0) {
 }
 
 
+# How a workshop is taught, in words a visitor needs no glossary for. The card
+# and the info page both use these, so they say the same thing. eventtype
+# (Live, Flipped, Independent) stays in the sheet but is not shown.
+format_of <- function(eventtype) {
+  case_when(
+    str_detect(coalesce(eventtype, ""), "Live") ~ "live",
+    str_detect(coalesce(eventtype, ""), "Flipped") ~ "flipped",
+    TRUE ~ "independent"
+  )
+}
+how_taught <- c(
+  live = "Lectures live on Zoom",
+  flipped = "Recorded lectures plus live Zoom meetings",
+  independent = "Recorded lectures, watch anytime"
+)
+
+# Recordings are on the workshop page within 48 hours after a run's last day.
+# Until then the run counts as current; after that the workshop is described
+# as recorded, on the card and the info page alike. loader.js uses the same
+# number.
+posting_days <- 2
+
+# A live or flipped row's meeting dates. "TBA" or a blank cell gives none. A
+# cell with numbers that will not read stops the build, because it would put
+# a live workshop on the wrong days.
+run_dates <- function(row) {
+  if (format_of(row$eventtype) == "independent" || !str_detect(coalesce(row$meeting_dates, ""), "\\d")) {
+    return(as.Date(character(0)))
+  }
+  dates <- parse_meeting_dates(row$meeting_dates, row$row_year)
+  if (any(is.na(dates))) {
+    stop("Cannot read meeting_dates '", row$meeting_dates, "' for '", row$title, "'. ",
+         "Write them like Jan 12, 13, 14.")
+  }
+  sort(dates)
+}
+
+
 # 2. Cards ----------------------------------------------------------------
+
+# The listing is published as data. loader.js draws the cards from it in the
+# visitor's browser, so a run's state (coming up, in progress, just finished,
+# watch anytime) follows the visitor's date rather than last night's build.
+
+# How the tag filters are grouped. Any other tag is a topic. The hidden tags are
+# not filters: Legacy is on every card, Combo is a line on the card, and New is
+# a badge on the card.
+software_tags <- c("R", "Mplus", "SPSS")
+other_tags <- c("Free", "Advanced")
+hidden_tags <- c("Legacy", "Combo", "New")
+
+split_cell <- function(x, pattern) {
+  if (is.na(x)) return(character(0))
+  out <- str_squish(str_split(x, pattern)[[1]])
+  out[out != ""]
+}
+
+# "8 AM–11 AM ET", from a session_et cell
+session_text <- function(x, title) {
+  hm <- parse_session_et(x, title)
+  if (is.null(hm)) return(NA_character_)
+  t <- ymd_hm(paste("2000-01-01", hm), tz = "UTC")
+  # \u2013 is an en dash, written as an escape so the output does not depend
+  # on the locale R runs in
+  paste0(fmt_12h(t[1]), "\u2013", fmt_12h(t[2]), " ET")
+}
+
+card_data <- function(row) {
+  tags <- split_cell(row$tags, ";")
+  format <- format_of(row$eventtype)
+  live <- format != "independent"
+  dates <- run_dates(row)
+
+  list(
+    title = row$title,
+    link = row$link,
+    duration = row$duration,
+    instructors = I(split_cell(row$instructors, "\\s*(&|;|\\s+and\\s+)\\s*")),
+    format = format,
+    how = unname(how_taught[format]),
+    dates = I(format(dates, "%Y-%m-%d")),
+    time = if (live) session_text(row$session_et, row$title) else NA_character_,
+    # A live or flipped workshop without last run's videos is on its first run:
+    # every returning live workshop comes with them.
+    first_run = live && !row$videos_now,
+    new = (live && !row$videos_now) || "New" %in% tags,
+    free = "Free" %in% tags,
+    combo = "Combo" %in% tags,
+    tags = I(setdiff(tags, c(hidden_tags, "Free")))
+  )
+}
 
 cards <-
   workshops |>
   filter(!draft) |>
-  mutate(
-    tags = if_else(!is.na(status_badge), if_else(is.na(tags), status_badge, str_c(tags, ";", status_badge)), tags),
-    sortable_date = map2_vec(meeting_dates, row_year, get_sort_date),
-    details = str_glue("{duration} Online Workshop"),
-    videos_line = if_else(
-      videos_now & coalesce(eventtype != "Independent", FALSE),
-      "<br /><span class='fw-semibold text-dark'>Recordings available now</span>",
-      ""
-    ),
-    format_class = case_when(
-      str_detect(eventtype, "Live") ~ "format-live",
-      str_detect(eventtype, "Flipped") ~ "format-flipped",
-      str_detect(eventtype, "Independent") ~ "format-indep",
-      TRUE ~ "format-self"
-    ),
-    format_icon = case_when(
-      str_detect(eventtype, "Live") ~ "<span class='color-emoji'>🔴</span>",
-      str_detect(eventtype, "Flipped") ~ "<span class='color-emoji'>🟣</span>",
-      str_detect(eventtype, "Independent") ~ "<span class='color-emoji'>🟢</span>",
-      TRUE ~ ""
-    ),
-    bottom_footer = case_when(
-      eventtype == "Independent" ~ str_glue("<span class='d-flex align-items-center gap-2'><span class='color-emoji'>💻</span> Fully Asynchronous</span> <span class='ms-auto format-badge {format_class} d-flex align-items-center gap-1'>Independent {format_icon}</span>"),
-      TRUE ~ str_glue("<span class='d-flex align-items-center gap-2'><span class='color-emoji'>📅</span> <span>{map2_chr(meeting_dates, row_year, format_dates_html)}</span></span> <span class='ms-auto format-badge {format_class} d-flex align-items-center gap-1'>{eventtype} {format_icon}</span>")
-    )
-  ) |>
-  arrange(sortable_date, title) |>
-  mutate(
-    tagscomma = str_replace_all(tags, pattern = ";", replacement = ","),
-    tagstring = map_chr(tags, make_tags)
-  )
+  mutate(tags = if_else(!is.na(status_badge), if_else(is.na(tags), status_badge, str_c(tags, ";", status_badge)), tags))
 
 # A sheet that reads as empty (a renamed tab, every row still a draft) would
 # otherwise publish an empty listing over the good one. Failing here leaves the
@@ -296,147 +300,39 @@ if (nrow(cards) == 0) {
   stop("No published workshops in the '", year, "' tab. Nothing was written.")
 }
 
-all_tags <- cards |>
-  pull(tags) |>
-  str_split(";") |>
-  unlist() |>
-  str_squish()
+card_list <- map(seq_len(nrow(cards)), \(i) card_data(cards[i, ]))
 
-unique_tags <- sort(unique(all_tags[all_tags != "" & !is.na(all_tags)]))
-
-button_html_all <- '<button class="btn btn-outline-dark btn-sm filter-btn active" data-tag="all" title="Show all workshops">All</button>'
-
-button_html_tags <- map_chr(unique_tags, \(tag) {
-  str_glue('<button class="btn btn-outline-secondary btn-sm filter-btn" data-tag="{tag}" title="Show only {tag}">{tag}</button>')
-}) |>
-  str_c(collapse = "\n    ")
-
-filter_buttons_html <- str_c(button_html_all, "\n    ", button_html_tags)
-
-# This is what used to sit inside <template id="workshop-template"> in the
-# pasted code block. loader.js puts it into a shadow root, so the Bootstrap CSS
-# here styles the cards and nothing else on the Squarespace page. The emoji font
-# is not linked here: browsers ignore fonts linked inside a shadow root, so
-# loader.js adds that link to the page itself.
-part1_top <- '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
-<style>
-  .color-emoji {
-    font-family: \'Noto Color Emoji\', sans-serif;
-    font-size: 1.1em;
-    line-height: 1;
-  }
-  .card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-                0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  }
-
-  .card-title {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #1a202c;
-  }
-
-  .tag {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #4a5568;
-    background-color: #f7fafc;
-    border: 1px solid #000000;
-    border-radius: 20px;
-    padding: 4px 12px;
-  }
-
-  .tag-emph {
-    background-color: #f1f5f9 !important;
-    border-color: #64748b !important;
-    color: #334155 !important;
-    font-weight: 700 !important;
-  }
-
-  .filter-btn {
-    border: 1px solid currentColor !important;
-    border-radius: 50rem !important;
-    padding: 2px 10px !important;
-    font-size: 0.75rem !important;
-    line-height: 1.5 !important;
-    box-shadow: none !important;
-  }
-
-  .format-live { color: #991b1b; }      /* Dark Red */
-  .format-flipped { color: #6b21a8; }   /* Deep Purple */
-  .format-indep { color: #166534; }     /* Dark Green */
-
-  .format-badge {
-    font-size: 0.95rem;
-    font-weight: 700;
-  }
-</style>
-
-<div class="mb-4 d-flex justify-content-center flex-wrap gap-2">
-  <span class="me-2 fw-bold align-self-center">Filter by Tag:</span>
-  '
-
-part1_bottom <- '
-</div>
-
-<div class="row row-cols-1 row-cols-md-3 g-4">
-'
-
-part1 <- str_c(part1_top, filter_buttons_html, part1_bottom)
-
-part2 <- str_c(str_glue(
-  '
-  <div class="col">
-    <div class="card h-100 position-relative custom-shadow" data-tags="{cards$tagscomma}">
-
-      <div class="card-body d-flex flex-column flex-grow-1">
-        <h5 class="card-title fw-bold mb-2">{cards$title}</h5>
-
-        <p class="card-text mb-0 text-muted small">
-          {cards$details}<br />
-          <span class="fst-italic">{cards$instructors}</span>{cards$videos_line}
-        </p>
-
-        <div class="mt-auto pt-3">{cards$tagstring}</div>
-
-        <a href="{cards$link}" class="stretched-link"></a>
-      </div>
-
-      <div class="card-footer bg-light border-top">
-        <div class="small fw-bold text-dark d-flex align-items-center">
-          {cards$bottom_footer}
-        </div>
-      </div>
-
-    </div>
-  </div>
-  '
-), collapse = "")
-
-part3 <- '
-</div>
-'
+# Free is a filter too, though the card shows it as a badge rather than a tag.
+all_tags <- sort(unique(c(
+  unlist(map(card_list, "tags")),
+  if (any(map_lgl(card_list, "free"))) "Free"
+)))
+filter_groups <- list(
+  list(label = "Topic", tags = I(setdiff(all_tags, c(software_tags, other_tags)))),
+  list(label = "Software", tags = I(intersect(software_tags, all_tags))),
+  list(label = "Other", tags = I(intersect(other_tags, all_tags)))
+)
+filter_groups <- keep(filter_groups, \(g) length(g$tags) > 0)
 
 built_note <- str_c(
   "<!-- Built ", format(now(tzone = local_tz), "%Y-%m-%d %H:%M %Z"),
   " from the '", year, "' tab by build_listing.R. Do not edit by hand. -->\n"
 )
 
-listing <- str_c(built_note, part1, part2, part3)
+listing_json <-
+  toJSON(
+    list(groups = filter_groups, cards = card_list),
+    auto_unbox = TRUE, na = "null", null = "null"
+  ) |>
+  # The data sits inside a <script> element, which a "</" in a title would end.
+  str_replace_all(fixed("</"), "<\\/")
+
+listing <-
+  read_file_text("templates/listing.html") |>
+  str_replace(fixed("<!-- DATA -->"), str_c(
+    '<script type="application/json" id="sw-data">', listing_json, "</script>"
+  ))
+listing <- str_c(built_note, listing)
 
 
 # 3. Info-page details ----------------------------------------------------
@@ -476,8 +372,13 @@ escape_html <- function(x) {
 }
 
 make_details <- function(row) {
-  live <- !is.na(row$eventtype) && row$eventtype != "Independent"
-  where <- if (live) " on Zoom" else ""
+  format <- format_of(row$eventtype)
+  dates <- run_dates(row)
+  # Once the run is over and its recordings are up, the page describes a
+  # recorded workshop, as its card does, until the row gets new dates.
+  finished <- length(dates) > 0 && max(dates) + posting_days < run_date
+  if (finished) format <- "independent"
+  live <- format != "independent"
   out <- character(0)
 
   if (!is.na(row$instructor_details)) {
@@ -487,11 +388,9 @@ make_details <- function(row) {
     out <- c(out, str_glue('<p><span class="label">{label}</span><br>{paste(lines, collapse = "<br>")}</p>'))
   }
 
-  out <- c(out, str_glue('<p><span class="label">Workshop Format:</span><br>{row$duration} {row$eventtype} Workshop{where}</p>'))
+  out <- c(out, str_glue('<p><span class="label">Workshop Format:</span><br>{row$duration} Workshop \u00b7 {how_taught[[format]]}</p>'))
 
   if (live) {
-    dates <- parse_meeting_dates(row$meeting_dates, row$row_year)
-    dates <- dates[!is.na(dates)]
     hm <- parse_session_et(row$session_et, row$title)
     if (length(dates) > 0) {
       if (is.null(hm)) {
@@ -503,6 +402,10 @@ make_details <- function(row) {
                str_glue("<table>{rows}</table>"))
     }
 
+    # The promise: a run's recordings are on the workshop page within 48 hours
+    # after its last day ends, so by the end of the second day after it.
+    posted_by <- if (length(dates) > 0) paste0(" (by ", fmt_day(max(dates) + posting_days), ")") else ""
+
     if (row$videos_now) {
       out <- c(out,
         '<p class="label" style="margin-bottom:0">What you get when you register:</p>',
@@ -510,11 +413,13 @@ make_details <- function(row) {
           "<ol>",
           "<li><strong>Right away:</strong> the complete recordings from the previous run of this workshop.</li>",
           "<li><strong>During the live sessions:</strong> join on Zoom and ask the instructor questions.</li>",
-          "<li><strong>After each live session:</strong> its recording is posted to your workshop page.</li>",
+          "<li><strong>After the last live session:</strong> the new recordings are posted to your workshop page within 48 hours", posted_by, ".</li>",
           "</ol>"
         ))
     } else {
-      out <- c(out, '<p><span class="label">Video Availability:</span><br>Each live session is recorded and posted to your workshop page.</p>')
+      out <- c(out, paste0('<p><span class="label">Video Availability:</span><br>Every live session is recorded. ',
+                           'The recordings are posted to your workshop page within 48 hours after the last session ends',
+                           posted_by, '.</p>'))
     }
     out <- c(out, "<p>Attending live is optional, because every session is recorded. We encourage you to join if you can: it is your chance to ask the instructor questions.</p>")
   } else {
