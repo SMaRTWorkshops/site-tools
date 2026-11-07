@@ -5,7 +5,9 @@
  *
  *   <div id="workshop-host"></div>
  *     The card listing on /workshops (snippet.html). Filled from
- *     workshops.html, with working tag filters.
+ *     workshops.html, which holds the styles, the page outline and the
+ *     workshops as data. This file draws the cards from the data and runs the
+ *     search and filters.
  *
  *   <div class="sw-details"></div>
  *     The format, live sessions, and video access section of an info page
@@ -19,7 +21,6 @@
  */
 (function () {
   var FALLBACK_BASE = "https://smartworkshops.github.io/site-tools/";
-  var EMOJI_FONT = "https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap";
 
   var script = document.currentScript;
   var base = script && script.src ? script.src.replace(/[^\/]*$/, "") : FALLBACK_BASE;
@@ -48,47 +49,272 @@
 
   var listing = document.getElementById("workshop-host");
   if (listing) {
-    // Chrome and Safari ignore @font-face rules that load inside a shadow
-    // root, so the emoji font goes on the page itself. The cards still pick it
-    // up, because fonts registered on the page are visible inside the shadow
-    // root.
-    if (!document.querySelector('link[href="' + EMOJI_FONT + '"]')) {
-      var fontLink = document.createElement("link");
-      fontLink.rel = "stylesheet";
-      fontLink.href = EMOJI_FONT;
-      document.head.appendChild(fontLink);
-    }
-
     fill(
       listing,
       base + "workshops.html",
-      '<p style="text-align:center;color:#64748b;padding:2rem 0">Loading workshops&hellip;</p>',
+      '<p style="text-align:center;color:#666;padding:2rem 0">Loading workshops&hellip;</p>',
       '<p style="text-align:center;padding:2rem 0">The workshop list did not load. ' +
         "Please refresh the page to try again.</p>",
-      wireFilters
+      drawListing
     );
   }
 
-  function wireFilters(root) {
-    var filterButtons = root.querySelectorAll(".filter-btn[data-tag]");
-    var cards = root.querySelectorAll(".card");
+  // The listing ----------------------------------------------------------
+  //
+  // A live or flipped run is "coming up" until its first day, "in progress"
+  // until its last, "finished" for the 48 hours in which its recordings are
+  // posted, and after that the workshop moves to "Watch anytime". Days are
+  // taken in New York time, like the dates in the sheet.
 
-    filterButtons.forEach(function (button) {
-      button.addEventListener("click", function () {
-        filterButtons.forEach(function (btn) { btn.classList.remove("active"); });
-        button.classList.add("active");
+  var POSTING_DAYS = 2;
+  var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-        var tag = button.getAttribute("data-tag");
-        cards.forEach(function (card) {
-          var attr = card.getAttribute("data-tags");
-          var cardTags = attr ? attr.split(",").map(function (t) { return t.trim(); }) : [];
-          var show = tag === "all" || cardTags.indexOf(tag) !== -1;
-          if (card.parentElement) {
-            card.parentElement.style.display = show ? "block" : "none";
-          }
-        });
-      });
+  // "2027-01-12" as a whole number of days, for arithmetic
+  function dayNum(iso) {
+    var p = iso.split("-");
+    return Date.UTC(+p[0], +p[1] - 1, +p[2]) / 864e5;
+  }
+  function fromDayNum(n) { return new Date(n * 864e5); }
+  function fmtDay(n) { var d = fromDayNum(n); return MON[d.getUTCMonth()] + " " + d.getUTCDate(); }
+
+  function todayInNewYork() {
+    // ?sw_today=2027-06-16 previews another day. Nothing else reads it.
+    var forced = new URLSearchParams(window.location.search).get("sw_today");
+    if (forced && /^\d{4}-\d{2}-\d{2}$/.test(forced)) return dayNum(forced);
+    var parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit"
+    }).format(new Date());
+    return dayNum(parts);
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
     });
+  }
+
+  // "3 Half-Day" -> "3 half-days", "1 Day" -> "1 day"
+  function durationText(x) {
+    var m = String(x || "").match(/^(\d+)\s+(.*)$/);
+    if (!m) return esc(x || "");
+    var n = +m[1], unit = m[2].toLowerCase();
+    return esc(n + " " + unit + (n === 1 ? "" : "s"));
+  }
+
+  function drawListing(root) {
+    var dataEl = root.getElementById("sw-data");
+    if (!dataEl) return;
+    var data = JSON.parse(dataEl.textContent);
+    var $ = function (id) { return root.getElementById(id); };
+    var today = todayInNewYork();
+
+    // Each card's state today
+    var cards = data.cards.map(function (c) {
+      c.days = (c.dates || []).map(dayNum);
+      c.instructors = c.instructors || [];
+      c.tags = c.tags || [];
+      if (c.format === "independent") { c.state = "anytime"; return c; }
+      if (!c.days.length) { c.state = "tba"; return c; }
+      var first = c.days[0], last = c.days[c.days.length - 1];
+      if (today > last + POSTING_DAYS) c.state = "anytime";
+      else if (today > last) c.state = "ended";
+      else if (today >= first) c.state = "running";
+      else c.state = "upcoming";
+      return c;
+    });
+
+    var counts = {};
+    cards.forEach(function (c) {
+      c.instructors.forEach(function (n) { counts[n] = (counts[n] || 0) + 1; });
+    });
+
+    // The filters live in the page address, so a filtered view can be linked
+    var params = new URLSearchParams(window.location.search);
+    var S = {
+      q: params.get("q") || "",
+      instructor: params.get("instructor") || "",
+      tags: (params.get("topics") || "").split(",").filter(Boolean)
+    };
+    if (S.instructor && !counts[S.instructor]) S.instructor = "";
+
+    function writeUrl() {
+      var p = new URLSearchParams(window.location.search);
+      p.delete("q"); p.delete("instructor"); p.delete("topics");
+      if (S.q) p.set("q", S.q);
+      if (S.instructor) p.set("instructor", S.instructor);
+      if (S.tags.length) p.set("topics", S.tags.join(","));
+      var s = p.toString();
+      try {
+        history.replaceState(history.state, "", window.location.pathname + (s ? "?" + s : "") + window.location.hash);
+      } catch (e) { /* a sandboxed preview may refuse; the filters still work */ }
+    }
+
+    function hasTag(c, t) { return t === "Free" ? c.free : c.tags.indexOf(t) !== -1; }
+
+    function matches(c) {
+      if (S.instructor && c.instructors.indexOf(S.instructor) === -1) return false;
+      if (S.q) {
+        var hay = (c.title + " " + c.instructors.join(" ") + " " + c.tags.join(" ")).toLowerCase();
+        var words = S.q.toLowerCase().split(/\s+/);
+        for (var i = 0; i < words.length; i++) if (hay.indexOf(words[i]) === -1) return false;
+      }
+      // Any of the picked tags within a group, and every group with a pick
+      for (var g = 0; g < data.groups.length; g++) {
+        var picked = data.groups[g].tags.filter(function (t) { return S.tags.indexOf(t) !== -1; });
+        if (picked.length && !picked.some(function (t) { return hasTag(c, t); })) return false;
+      }
+      return true;
+    }
+
+    function whoHtml(c) {
+      return c.instructors.map(function (n) {
+        return '<button class="who" data-who="' + esc(n) + '" title="Show workshops by ' + esc(n) + '">' + esc(n) + "</button>";
+      }).join(" &amp; ");
+    }
+    function titleHtml(c) {
+      return "<h3>" + (c["new"] ? '<span class="badge new">New</span>' : "") +
+        (c.free ? '<span class="badge free">Free</span>' : "") +
+        '<a href="' + esc(c.link || "#") + '">' + esc(c.title) + "</a></h3>";
+    }
+    function tagsHtml(c) {
+      if (!c.tags.length) return "";
+      return '<div class="tags">' + c.tags.map(function (t) {
+        return '<button class="chip" data-tag="' + esc(t) + '" aria-pressed="' + (S.tags.indexOf(t) !== -1) + '">' + esc(t) + "</button>";
+      }).join("") + "</div>";
+    }
+    function comboHtml(c) {
+      if (!c.combo) return "";
+      return '<div class="combo" title="Save 20% when you register for this together with another workshop. ' +
+        'The combo options are on its page.">Combo pricing available</div>';
+    }
+    function availHtml(c) {
+      if (c.state === "anytime") return '<div class="avail now"><span class="ico">✓</span>Watch now</div>';
+      var last = c.days[c.days.length - 1];
+      if (c.state === "ended") {
+        return '<div class="avail later"><span class="ico">◷</span>Live sessions ended ' + fmtDay(last) +
+          " · full recordings by " + fmtDay(last + POSTING_DAYS) + "</div>";
+      }
+      if (c.first_run) {
+        return '<div class="avail later"><span class="ico">◷</span>New workshop: recordings posted ' +
+          (c.days.length ? "by " + fmtDay(last + POSTING_DAYS) : "within 48 hours of the last session") + "</div>";
+      }
+      return '<div class="avail now"><span class="ico">✓</span>Recordings from the last run available now</div>';
+    }
+
+    function liveCard(c) {
+      var flipped = c.format === "flipped", ended = c.state === "ended";
+      var when;
+      if (c.days.length) {
+        var f = fromDayNum(c.days[0]), l = fromDayNum(c.days[c.days.length - 1]);
+        var mon = f.getUTCMonth() === l.getUTCMonth() ? MON[f.getUTCMonth()] : MON[f.getUTCMonth()] + "–" + MON[l.getUTCMonth()];
+        var days = c.days.length === 1 ? f.getUTCDate() : f.getUTCDate() + "–" + l.getUTCDate();
+        var thisYear = fromDayNum(today).getUTCFullYear();
+        var yr = f.getUTCFullYear() !== thisYear ? '<span class="yr">' + f.getUTCFullYear() + "</span>" : "";
+        when = '<span class="mon">' + mon + '</span><span class="days">' + days + "</span>" + yr;
+      } else {
+        when = '<span class="mon">Dates</span><span class="yr">to be announced</span>';
+      }
+      var sessions = c.days.map(function (n) {
+        var d = fromDayNum(n), t = DOW[d.getUTCDay()] + ", " + fmtDay(n);
+        return "<span>" + (n < today ? "<s>" + t + "</s>" : t) + "</span>";
+      }).join("");
+      var meta = [durationText(c.duration)];
+      if (c.time) meta.push(esc(c.time));
+      if (c.instructors.length) meta.push(whoHtml(c));
+      return '<article class="card live' + (flipped ? " flipped" : "") + (ended ? " ended" : "") + '">' +
+        '<div class="when" aria-hidden="true">' + when + "</div>" +
+        '<div class="body">' +
+        '<div class="fmt"><span class="kind">' + (flipped ? "Flipped" : "Live on Zoom") + (ended ? " · finished" : "") + "</span>" +
+        (c.state === "running" ? '<span class="pill">In progress</span>' : "") + "</div>" +
+        (flipped && !ended ? '<div class="explain">Recorded lectures at your own pace, plus live Zoom meetings</div>' : "") +
+        titleHtml(c) +
+        '<div class="meta">' + meta.join(" · ") + "</div>" +
+        (ended || !sessions ? "" : '<div class="sessions">' + sessions + "</div>") +
+        availHtml(c) + comboHtml(c) + tagsHtml(c) +
+        "</div></article>";
+    }
+
+    function anyCard(c) {
+      var meta = [durationText(c.duration)];
+      if (c.instructors.length) meta.push(whoHtml(c));
+      return '<article class="card anytime">' + titleHtml(c) +
+        '<div class="meta">' + meta.join(" · ") + "</div>" +
+        availHtml(c) + comboHtml(c) + tagsHtml(c) + "</article>";
+    }
+
+    var ORDER = { running: 0, upcoming: 1, tba: 2, ended: 3 };
+    var live = cards.filter(function (c) { return c.state !== "anytime"; }).sort(function (a, b) {
+      return ORDER[a.state] - ORDER[b.state] || (a.days[0] || 0) - (b.days[0] || 0);
+    });
+    var anytime = cards.filter(function (c) { return c.state === "anytime"; }).sort(function (a, b) {
+      return a.title.localeCompare(b.title, "en", { sensitivity: "base" });
+    });
+
+    // The status line counts from the data, so it is right in any month
+    var upN = live.filter(function (c) { return c.state !== "ended"; }).length;
+    var nowN = cards.filter(function (c) { return c.state === "anytime" || !c.first_run; }).length;
+    $("status").innerHTML =
+      (upN ? '<span class="s live"><span class="dot"></span>' + upN + " live workshop" + (upN > 1 ? "s" : "") + " coming up</span>"
+           : '<span class="s none">No live sessions scheduled right now</span>') +
+      '<span class="s now">✓ ' + (nowN === cards.length ? "All " + nowN : nowN) + " available to watch now</span>";
+
+    var lastName = function (n) { var p = n.split(" "); return p[p.length - 1]; };
+    var names = Object.keys(counts).sort(function (a, b) {
+      return lastName(a).localeCompare(lastName(b)) || a.localeCompare(b);
+    });
+
+    $("groups").innerHTML = data.groups.map(function (g) {
+      return '<div class="group" role="group" aria-label="' + esc(g.label) + '"><span class="group-label">' + esc(g.label) + "</span>" +
+        g.tags.map(function (t) { return '<button class="chip" data-tag="' + esc(t) + '">' + esc(t) + "</button>"; }).join("") + "</div>";
+    }).join("");
+    $("q").value = S.q;
+
+    function render() {
+      var L = live.filter(matches), A = anytime.filter(matches);
+      $("liveList").innerHTML = L.map(liveCard).join("");
+      $("grid").innerHTML = A.map(anyCard).join("");
+      $("liveSection").hidden = !L.length;
+      $("anySection").hidden = !A.length;
+      $("empty").hidden = L.length + A.length > 0;
+
+      var filtering = S.q || S.instructor || S.tags.length;
+      $("count").textContent = filtering
+        ? "Showing " + (L.length + A.length) + " of " + cards.length + " workshops"
+        : cards.length + " workshops";
+      $("clear").hidden = !filtering;
+      $("filtersToggle").textContent = "Topics & software" + (S.tags.length ? " (" + S.tags.length + ")" : "");
+      $("instructor").innerHTML = '<option value="">All instructors</option>' + names.map(function (n) {
+        return '<option value="' + esc(n) + '"' + (n === S.instructor ? " selected" : "") + ">" + esc(n) + " (" + counts[n] + ")</option>";
+      }).join("");
+      root.querySelectorAll("#groups .chip").forEach(function (b) {
+        b.setAttribute("aria-pressed", S.tags.indexOf(b.getAttribute("data-tag")) !== -1);
+      });
+      writeUrl();
+    }
+
+    function toggleTag(t) {
+      var i = S.tags.indexOf(t);
+      if (i === -1) S.tags.push(t); else S.tags.splice(i, 1);
+    }
+    function clearAll() { S.q = ""; S.instructor = ""; S.tags = []; $("q").value = ""; render(); }
+
+    $("q").addEventListener("input", function (e) { S.q = e.target.value.trim(); render(); });
+    $("instructor").addEventListener("change", function (e) { S.instructor = e.target.value; render(); });
+    $("filtersToggle").addEventListener("click", function () {
+      var open = $("groups").classList.toggle("open");
+      $("filtersToggle").setAttribute("aria-expanded", open);
+    });
+    $("clear").addEventListener("click", clearAll);
+    $("clear2").addEventListener("click", clearAll);
+    root.addEventListener("click", function (e) {
+      var tag = e.target.closest("[data-tag]");
+      if (tag) { toggleTag(tag.getAttribute("data-tag")); render(); return; }
+      var who = e.target.closest("[data-who]");
+      if (who) { S.instructor = who.getAttribute("data-who"); render(); }
+    });
+
+    render();
   }
 
   // Info-page details -----------------------------------------------------

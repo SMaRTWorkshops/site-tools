@@ -1,0 +1,181 @@
+<!--
+  The workshop listing on the /workshops page. build_listing.R fills in the
+  data line at the end and publishes this as workshops.html. loader.js puts it
+  in a shadow root on the Squarespace page and draws the cards from the data.
+-->
+<style>
+  /* Inherits the site's own fonts and colours: Squarespace sets the
+     --heading-font, --body-font, --black, --accent and --lightAccent custom
+     properties on the page, and custom properties reach inside a shadow root.
+     The fallbacks are today's values, for previews off Squarespace. */
+  :host, .sw {
+    --ink: hsl(var(--black-hsl, 0, 0%, 10%));
+    --muted: hsl(0, 0%, 36%);
+    --rule: hsla(0, 0%, 10%, .16);
+    --rule-strong: hsla(0, 0%, 10%, .85);
+    --gold: hsl(var(--accent-hsl, 39.4, 60.7%, 32.9%));
+    --gold-soft: hsl(var(--lightAccent-hsl, 39.4, 60.7%, 94%));
+    --live: #a33a2c;
+    --flip: #4f4a8a;
+    --now: #2f6a46;
+    --sans: var(--body-font-font-family, "brandon-grotesque"), "Helvetica Neue", Arial, sans-serif;
+    --serif: var(--heading-font-font-family, "granville"), Georgia, serif;
+  }
+  .sw { font-family: var(--sans); color: var(--ink); font-size: 17px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .sw * { box-sizing: border-box; }
+  .sw button { font-family: inherit; }
+  .sw [hidden] { display: none !important; }
+
+
+  /* Intro: replaces the paragraph, the note and the accordion */
+  .intro { text-align: center; max-width: 44em; margin: 0 auto; }
+  .lede { font-size: 1.2em; color: var(--muted); margin: 0 0 18px; line-height: 1.55; }
+  .status { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 28px; margin: 0 0 14px;
+            font-size: 14px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .status .s { display: inline-flex; align-items: center; gap: 8px; }
+  .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--live); }
+  .status .s.live { color: var(--live); }
+  .status .s.none { color: var(--muted); }
+  .status .s.now { color: var(--now); }
+  .links { font-size: 15px; color: var(--muted); margin: 0; }
+  .links a { color: var(--gold); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  .links a:hover { color: var(--ink); }
+  .links .sep { margin: 0 10px; color: var(--rule); }
+
+  /* Find bar */
+  .find { border-top: 1px solid var(--rule-strong); margin-top: 34px; padding-top: 22px; }
+  .toolbar { display: grid; grid-template-columns: 1fr 280px; gap: 12px; margin-bottom: 14px; }
+  .toolbar input, .toolbar select { font: inherit; font-size: 16px; width: 100%; padding: 10px 12px; color: var(--ink);
+            background: #fff; border: 1px solid var(--rule); border-radius: 2px; }
+  .toolbar input:focus-visible, .toolbar select:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; border-color: var(--gold); }
+  .groups { display: grid; gap: 8px; }
+  .group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .group-label { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); width: 82px; flex-shrink: 0; }
+  .chip { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; line-height: 1;
+          padding: 7px 10px 6px; border: 1px solid var(--rule); border-radius: 2px; background: #fff; color: var(--ink); cursor: pointer; }
+  .chip:hover { border-color: var(--ink); }
+  .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .chip:focus-visible, .who:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .filters-toggle { display: none; }
+  .resultline { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px; color: var(--muted);
+                padding: 14px 0 0; min-height: 36px; }
+  .clear { font: inherit; background: none; border: 0; padding: 0; color: var(--gold); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+  /* Sections */
+  .section { margin-top: 30px; }
+  .section h2 { font-family: var(--serif); font-weight: 700; font-size: 30px; line-height: 1.2; margin: 0 0 4px; color: var(--ink); }
+  .section .sub { margin: 0 0 18px; color: var(--muted); font-size: 16px; }
+
+  /* Cards */
+  .card { position: relative; background: #fff; border: 1px solid var(--rule); border-radius: 3px; transition: border-color .15s, box-shadow .15s; }
+  .card:hover { border-color: var(--ink); box-shadow: 0 8px 20px -14px rgba(0,0,0,.45); }
+  .card h3 { font-family: var(--serif); font-weight: 700; font-size: 21px; line-height: 1.25; margin: 0; color: var(--ink); }
+  .card h3 a { color: inherit; text-decoration: none; }
+  .card h3 a::after { content: ""; position: absolute; inset: 0; }
+  .card h3 a:focus-visible { outline: none; }
+  .card h3 a:focus-visible::after { outline: 2px solid var(--gold); outline-offset: 3px; }
+  .card button { position: relative; z-index: 1; }
+  .meta { font-size: 15px; color: var(--muted); margin-top: 6px; }
+  .who { font: inherit; background: none; border: 0; padding: 0; color: inherit; cursor: pointer;
+         text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+  .who:hover { color: var(--ink); text-decoration-color: var(--ink); }
+  .avail { display: flex; align-items: baseline; gap: 8px; margin-top: 12px; font-size: 15px; font-weight: 700; }
+  .avail .ico { font-size: 13px; }
+  .avail.now { color: var(--now); }
+  .avail.later { color: var(--gold); }
+  .combo { font-size: 14px; color: var(--muted); margin-top: 4px; }
+  .combo .who { color: var(--gold); text-decoration-color: currentColor; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 16px; }
+  .tags .chip { font-size: 11px; padding: 5px 8px 4px; color: var(--muted); }
+  .badge { display: inline-block; font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+           padding: 4px 7px 3px; border-radius: 2px; vertical-align: 4px; margin-right: 8px; line-height: 1; }
+  .badge.new { background: var(--ink); color: #fff; }
+  .badge.free { border: 1px solid var(--gold); color: var(--gold); }
+
+  .live-list { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); }
+  .live { display: grid; grid-template-columns: 104px 1fr; overflow: hidden; }
+  .when { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 2px;
+          padding: 16px 6px; background: var(--gold-soft); border-right: 1px solid var(--rule); }
+  .live.ended .when { background: hsl(0, 0%, 96%); }
+  .when .mon { font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+  .when .days { font-family: var(--serif); font-weight: 700; font-size: 30px; line-height: 1; color: var(--ink); white-space: nowrap; }
+  .when .yr { font-size: 13px; letter-spacing: .08em; color: var(--muted); }
+  .live .body { padding: 18px 20px 18px; display: flex; flex-direction: column; }
+  .fmt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-bottom: 8px; }
+  .kind { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--live); }
+  .kind::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .live.flipped .kind { color: var(--flip); }
+  .live.ended .kind { color: var(--muted); }
+  .pill { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; padding: 4px 7px 3px; border-radius: 2px; background: var(--ink); color: #fff; line-height: 1; }
+  .explain { font-size: 14px; color: var(--muted); margin: -2px 0 8px; }
+  .sessions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; font-size: 14px; }
+  .sessions span { padding: 3px 9px; border: 1px solid var(--rule); border-radius: 2px; }
+  .sessions s { color: #9a9a9a; }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .anytime { padding: 18px 20px; display: flex; flex-direction: column; }
+
+  .empty { text-align: center; padding: 40px 16px; color: var(--muted); border: 1px dashed var(--rule); }
+
+  @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 640px) {
+    .sw { font-size: 16px; }
+    .lede { font-size: 1.05em; }
+    .status { flex-direction: column; align-items: center; gap: 4px; font-size: 13px; }
+    .links .sep { margin: 0 6px; }
+    .toolbar { grid-template-columns: 1fr; }
+    .filters-toggle { display: inline-block; margin-bottom: 4px; }
+    .filters-toggle::after { content: " ▾"; }
+    .filters-toggle[aria-expanded="true"]::after { content: " ▴"; }
+    .groups:not(.open) { display: none; }
+    .group { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+    .group::-webkit-scrollbar { display: none; }
+    .chip { flex-shrink: 0; }
+    .group-label { width: auto; margin-right: 4px; }
+    .live-list, .grid { grid-template-columns: 1fr; }
+    /* The date becomes a strip across the top of the card */
+    .live { grid-template-columns: 1fr; }
+    .when { flex-direction: row; justify-content: flex-start; align-items: baseline; gap: 10px; padding: 10px 16px;
+            border-right: 0; border-bottom: 1px solid var(--rule); }
+    .when .days { font-size: 22px; }
+    .live .body, .anytime { padding: 14px 16px; }
+    .anytime .tags { display: none; }
+    .section h2 { font-size: 25px; }
+  }
+</style>
+
+<div class="sw" id="sw">
+  <div class="intro">
+    <p class="lede">Live on Zoom or recorded to watch at your own pace. Every registration includes the recordings, and your access never expires.</p>
+    <div class="status" id="status"></div>
+    <p class="links">
+      <a href="/discounts">Discounts</a><span class="sep">|</span><a href="/contact">Group rates for 3+</a><span class="sep">|</span><a href="/invoice">Pay by invoice</a>
+    </p>
+  </div>
+
+  <div class="find">
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Search workshops or instructors" aria-label="Search workshops or instructors">
+      <select id="instructor" aria-label="Filter by instructor"></select>
+    </div>
+    <button class="chip filters-toggle" id="filtersToggle" aria-expanded="false" aria-controls="groups">Topics &amp; software</button>
+    <div class="groups" id="groups"></div>
+    <div class="resultline"><span id="count"></span><button class="clear" id="clear" hidden>Clear filters</button></div>
+  </div>
+
+  <section class="section" id="liveSection">
+    <h2>Live workshops</h2>
+    <p class="sub">Join on Zoom and ask the instructor questions. Every session is recorded, so attending live is optional.</p>
+    <div class="live-list" id="liveList"></div>
+  </section>
+
+  <section class="section" id="anySection">
+    <h2>Watch anytime</h2>
+    <p class="sub">Recorded workshops. Start right away, at your own pace.</p>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <div class="empty" id="empty" hidden>No workshops match these filters. <button class="clear" id="clear2">Clear filters</button></div>
+</div>
+
+<!-- DATA -->
