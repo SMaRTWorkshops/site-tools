@@ -175,9 +175,11 @@
     }
     function titleHtml(c) {
       return "<h3>" + (c["new"] ? '<span class="badge new">New</span>' : "") +
-        (c.free ? '<span class="badge free">Free</span>' : "") +
         '<a href="' + esc(c.link || "#") + '">' + esc(c.title) + "</a></h3>";
     }
+    // Free sits in the card's top-right corner: at the end of the format line
+    // on a live card, and at the end of the title row on a recorded one.
+    function freeHtml(c) { return c.free ? '<span class="badge free">Free</span>' : ""; }
     function tagsHtml(c) {
       if (!c.tags.length) return "";
       return '<div class="tags">' + c.tags.map(function (t) {
@@ -227,7 +229,7 @@
         '<div class="when" aria-hidden="true">' + when + "</div>" +
         '<div class="body">' +
         '<div class="fmt"><span class="kind">' + esc(ended ? "Finished" : c.how) + "</span>" +
-        (c.state === "running" ? '<span class="pill">In progress</span>' : "") + "</div>" +
+        (c.state === "running" ? '<span class="pill">In progress</span>' : "") + freeHtml(c) + "</div>" +
         titleHtml(c) +
         '<div class="meta">' + meta.join(" · ") + "</div>" +
         (ended || !sessions ? "" : '<div class="sessions">' + sessions + "</div>") +
@@ -238,7 +240,7 @@
     function anyCard(c) {
       var meta = [durationText(c.duration)];
       if (c.instructors.length) meta.push(whoHtml(c));
-      return '<article class="card anytime">' + titleHtml(c) +
+      return '<article class="card anytime"><div class="head">' + titleHtml(c) + freeHtml(c) + "</div>" +
         '<div class="meta">' + meta.join(" · ") + "</div>" +
         availHtml(c) + comboHtml(c) + tagsHtml(c) + "</article>";
     }
