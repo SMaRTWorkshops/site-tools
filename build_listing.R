@@ -72,11 +72,16 @@ format_dates_html <- function(date_string, current_year) {
     }
   }
 
-  month <- str_extract(parts[1], "^[A-Za-z]+")
+  months <- str_extract(parts, "^[A-Za-z]+")
+  month <- months[1]
   nums <- suppressWarnings(as.integer(str_extract(parts, "\\d+")))
 
+  # Only parts after the first that repeat its month, or name none, can join a
+  # range. Otherwise "Apr 6, May 7" would print as "Apr 6-7".
+  one_month <- all(is.na(months[-1]) | months[-1] == month)
+
   # Compress sequential numbers
-  if (length(parts) > 1 && all(!is.na(nums)) && all(diff(nums) == 1)) {
+  if (length(parts) > 1 && one_month && all(!is.na(nums)) && all(diff(nums) == 1)) {
     if (all(is_past)) {
       return(paste0("<s class='text-muted opacity-75'>", month, " ", nums[1], "-", nums[length(nums)], "</s>"))
     } else if (all(!is_past)) {
@@ -219,9 +224,10 @@ filter_buttons_html <- str_c(button_html_all, "\n    ", button_html_tags)
 
 # This is what used to sit inside <template id="workshop-template"> in the
 # pasted code block. loader.js puts it into a shadow root, so the Bootstrap CSS
-# here styles the cards and nothing else on the Squarespace page.
+# here styles the cards and nothing else on the Squarespace page. The emoji font
+# is not linked here: browsers ignore fonts linked inside a shadow root, so
+# loader.js adds that link to the page itself.
 part1_top <- '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap" rel="stylesheet">
 
 <style>
   .color-emoji {

@@ -10,6 +10,17 @@
  */
 (function () {
   var FALLBACK_BASE = "https://smartworkshops.github.io/site-tools/";
+  var EMOJI_FONT = "https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap";
+
+  // Chrome and Safari ignore @font-face rules that load inside a shadow root,
+  // so the emoji font goes on the page itself. The cards still pick it up,
+  // because fonts registered on the page are visible inside the shadow root.
+  if (!document.querySelector('link[href="' + EMOJI_FONT + '"]')) {
+    var fontLink = document.createElement("link");
+    fontLink.rel = "stylesheet";
+    fontLink.href = EMOJI_FONT;
+    document.head.appendChild(fontLink);
+  }
 
   var script = document.currentScript;
   var base = script && script.src ? script.src.replace(/[^\/]*$/, "") : FALLBACK_BASE;
